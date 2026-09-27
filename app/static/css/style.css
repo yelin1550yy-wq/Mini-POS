@@ -16,7 +16,9 @@ body {
     background-color: transparent;
 }
 
-/* Cat Theme Background Layer */
+/* ==========================================
+   IN-APP BACKGROUND IMAGE (for main app pages)
+   ========================================== */
 body::before {
     content: '';
     position: fixed;
@@ -24,21 +26,34 @@ body::before {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: #fef9f5;
-    background-image: 
-        radial-gradient(circle at 15% 20%, rgba(255, 159, 127, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 85% 80%, rgba(168, 216, 234, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 50% 50%, rgba(255, 214, 165, 0.05) 0%, transparent 60%);
+    background-image: url('/static/image/in app background.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     z-index: -3;
+    pointer-events: none;
+}
+
+/* Translucent white overlay for readability */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.88);
+    z-index: -2;
     pointer-events: none;
 }
 
 /* Floating Cat Silhouettes */
 .cat-silhouette {
     position: fixed;
-    z-index: -2;
+    z-index: -1;
     pointer-events: none;
-    opacity: 0.05;
+    opacity: 0.04;
     color: #ff9f7f;
     font-size: 120px;
     animation: floatCat 20s ease-in-out infinite;
@@ -109,7 +124,7 @@ body::before {
 /* Subtle floating particles */
 .floating-particle {
     position: fixed;
-    z-index: -1;
+    z-index: 0;
     pointer-events: none;
     border-radius: 50%;
     background: linear-gradient(135deg, rgba(255, 159, 127, 0.15), rgba(255, 214, 165, 0.1));
@@ -135,7 +150,7 @@ body::before {
     border: none;
     border-radius: 0.75rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.97);
     backdrop-filter: blur(10px);
     transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
 }
@@ -236,12 +251,45 @@ body::before {
     backdrop-filter: blur(10px);
 }
 
+.navbar-brand {
+    font-size: 1.25rem;
+    font-weight: 700;
+    transition: transform 0.2s ease;
+}
+
+.navbar-brand:hover {
+    transform: scale(1.02);
+}
+
+.navbar-brand i {
+    font-size: 1.5rem;
+    margin-right: 0.5rem;
+    animation: catBounce 3s ease-in-out infinite;
+}
+
+@keyframes catBounce {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(5deg); }
+    50% { transform: rotate(-5deg); }
+    75% { transform: rotate(3deg); }
+}
+
+/* Cat icon next to nav items */
+.nav-link i {
+    transition: transform 0.2s ease;
+}
+
+.nav-link:hover i {
+    transform: scale(1.2) rotate(5deg);
+    color: #ffd6a5;
+}
+
 /* Form enhancements */
 .form-control, .form-select {
     border-radius: 0.5rem;
     border: 1px solid #ffe8dc;
     padding: 0.625rem 0.875rem;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.95);
     transition: all 0.2s ease;
 }
 
@@ -374,7 +422,9 @@ body::before {
     border-radius: 0 0 0.75rem 0.75rem;
 }
 
-/* Login page specific */
+/* ==========================================
+   LOGIN PAGE BACKGROUND
+   ========================================== */
 .login-bg {
     position: fixed;
     top: 0;
@@ -382,10 +432,44 @@ body::before {
     width: 100%;
     height: 100%;
     z-index: -3;
-    background: linear-gradient(135deg, #fef9f5 0%, #fff0e8 50%, #ffe8dc 100%);
+    background-image: url('/static/image/Log in background.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     overflow: hidden;
 }
 
+.login-bg::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.15) 100%);
+    z-index: -1;
+}
+
+/* Login card animation */
+.login-card {
+    animation: loginCardIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(30px);
+}
+
+@keyframes loginCardIn {
+    0% {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Subtle pattern overlay for login */
 .login-bg::before {
     content: '';
     position: absolute;
@@ -393,14 +477,37 @@ body::before {
     left: -50%;
     width: 200%;
     height: 200%;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='20' cy='20' r='2' fill='%23ff9f7f' opacity='0.1'/%3E%3Ccircle cx='80' cy='40' r='1.5' fill='%23a8d8ea' opacity='0.1'/%3E%3Ccircle cx='40' cy='80' r='1' fill='%23ffd6a5' opacity='0.1'/%3E%3Ccircle cx='60' cy='10' r='2.5' fill='%23ff9f7f' opacity='0.08'/%3E%3Ccircle cx='90' cy='70' r='1' fill='%23a8d8ea' opacity='0.08'/%3E%3Ccircle cx='10' cy='60' r='1.5' fill='%23ffd6a5' opacity='0.08'/%3E%3C/svg%3E");
-    animation: patternFloat 30s ease-in-out infinite;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='20' cy='20' r='2' fill='%23ff9f7f' opacity='0.08'/%3E%3Ccircle cx='80' cy='40' r='1.5' fill='%23a8d8ea' opacity='0.08'/%3E%3Ccircle cx='40' cy='80' r='1' fill='%23ffd6a5' opacity='0.08'/%3E%3Ccircle cx='60' cy='10' r='2.5' fill='%23ff9f7f' opacity='0.06'/%3E%3Ccircle cx='90' cy='70' r='1' fill='%23a8d8ea' opacity='0.06'/%3E%3Ccircle cx='10' cy='60' r='1.5' fill='%23ffd6a5' opacity='0.06'/%3E%3C/svg%3E");
+    animation: patternFloat 40s ease-in-out infinite;
+    opacity: 0.4;
 }
 
 @keyframes patternFloat {
     0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    33% { transform: translate(20px, 20px) rotate(1deg); }
-    66% { transform: translate(-20px, -10px) rotate(-1deg); }
+    33% { transform: translate(15px, 15px) rotate(0.5deg); }
+    66% { transform: translate(-15px, -10px) rotate(-0.5deg); }
+}
+
+/* Floating cat emojis on login page */
+.login-cat {
+    position: absolute;
+    font-size: 80px;
+    opacity: 0.08;
+    pointer-events: none;
+    user-select: none;
+    animation: loginCatFloat 8s ease-in-out infinite;
+}
+
+.login-cat:nth-child(1) { top: 8%; left: 5%; animation-delay: 0s; }
+.login-cat:nth-child(2) { top: 15%; right: 8%; animation-delay: -2s; }
+.login-cat:nth-child(3) { bottom: 12%; left: 10%; animation-delay: -4s; }
+.login-cat:nth-child(4) { bottom: 20%; right: 5%; animation-delay: -6s; }
+
+@keyframes loginCatFloat {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(15px, -10px) rotate(3deg) scale(1.02); }
+    50% { transform: translate(-10px, 15px) rotate(-2deg) scale(0.98); }
+    75% { transform: translate(12px, 12px) rotate(1deg) scale(1.01); }
 }
 
 /* Reduced motion support */
@@ -411,13 +518,15 @@ body::before {
     .card,
     .btn,
     .stats-icon,
-    .login-bg::before {
+    .login-bg::before,
+    .login-card {
         animation: none !important;
         transition: none !important;
     }
     
     .cat-silhouette,
-    .floating-particle {
+    .floating-particle,
+    .login-cat {
         display: none;
     }
 }
@@ -491,4 +600,68 @@ body::before {
     .stats-card:hover {
         transform: none;
     }
+    
+    .login-cat {
+        font-size: 50px;
+        opacity: 0.04;
+    }
+}
+
+/* Login page cat icon in card header */
+.card-title i.bi-emoji-smile {
+    animation: catWave 2s ease-in-out infinite;
+    display: inline-block;
+}
+
+@keyframes catWave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(15deg); }
+    50% { transform: rotate(-10deg); }
+    75% { transform: rotate(5deg); }
+}
+
+/* Cat icon in navbar brand */
+.navbar-brand .bi-cat {
+    font-size: 1.5rem;
+    margin-right: 0.5rem;
+    animation: catBounce 3s ease-in-out infinite;
+}
+
+@keyframes catBounce {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-3px) rotate(5deg); }
+    50% { transform: translateY(2px) rotate(-3deg); }
+    75% { transform: translateY(-2px) rotate(2deg); }
+}
+
+/* Cat icon hover effects in dropdowns and buttons */
+.dropdown-item .bi-emoji-smile,
+.btn .bi-emoji-smile {
+    transition: transform 0.3s ease;
+}
+
+.dropdown-item:hover .bi-emoji-smile,
+.btn:hover .bi-emoji-smile {
+    transform: scale(1.3) rotate(10deg);
+}
+
+/* Form focus cat animation */
+.form-control:focus,
+.form-select:focus {
+    animation: inputFocus 0.3s ease;
+}
+
+@keyframes inputFocus {
+    0% { box-shadow: 0 0 0 0.2rem rgba(255, 159, 127, 0.2); }
+    50% { box-shadow: 0 0 0 0.25rem rgba(255, 159, 127, 0.3); }
+    100% { box-shadow: 0 0 0 0.2rem rgba(255, 159, 127, 0.2); }
+}
+
+/* Stats card cat icon */
+.stats-icon .bi-emoji-smile {
+    transition: transform 0.3s ease;
+}
+
+.stats-card:hover .stats-icon .bi-emoji-smile {
+    transform: scale(1.2) rotate(10deg);
 }
