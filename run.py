@@ -1,21 +1,185 @@
 # ==========================================
-# FILE: app/routes.py
+# FILE: run.py (Project Root)
 # ==========================================
-from datetime import datetime
-from app import db
+import os
+from app import create_app, db
 from app.models import (
-    Customer,
-    Expense,
+    User,
     Product,
+    Supplier,
+    Customer,
     Purchase,
+    PurchaseItem,
     Sale,
     SaleItem,
     StockMovement,
-    Supplier,
+    Expense,
+)
+
+app = create_app()
+
+
+@app.shell_context_processor
+def make_shell_context():
+    return {
+        "db": db,
+        "User": User,
+        "Product": Product,
+        "Supplier": Supplier,
+        "Customer": Customer,
+        "Purchase": Purchase,
+        "PurchaseItem": PurchaseItem,
+        "Sale": Sale,
+        "SaleItem": SaleItem,
+        "StockMovement": StockMovement,
+        "Expense": Expense,
+    }
+
+
+if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+
+        if not User.query.filter_by(username="admin").first():
+            admin = User(username="admin", email="admin@example.com", role="admin")
+            admin.set_password("admin123")
+            db.session.add(admin)
+
+            user = User(username="staff", email="staff@example.com", role="user")
+            user.set_password("staff123")
+            db.session.add(user)
+
+            db.session.commit()
+            print("Default users created: admin/admin123, staff/staff123")
+
+    app.run(debug=True, host="0.0.0.0", port=5000)
+
+
+# ==========================================
+# FILE: app/models.py
+# ==========================================
+from datetime import datetime
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+from app import db
+
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    role = db.Column(db.String(20), default="user")
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    sku = db.Column(db.String(50), unique=True, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    cost = db.Column(db.Float, nullable=False)
+    stock = db.Column(db.Integer, default=0)
+    category = db.Column(db.String(50))
+
+
+class Supplier(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    contact = db.Column(db.String(50))
+    email = db.Column(db.String(120))
+    address = db.Column(db.Text)
+
+
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    account_name = db.Column(db.String(100))
+    phone = db.Column(db.String(30))
+    township = db.Column(db.String(50))
+    is_blacklisted = db.Column(db.Boolean, default=False)
+    sales = db.relationship("Sale", backref="customer", lazy=True)
+
+
+class Purchase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    reference = db.Column(db.String(50), unique=True, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier.id"), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    items = db.relationship(
+        "PurchaseItem", backref="purchase", cascade="all, delete-orphan"
+    )
+
+
+class PurchaseItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    purchase_id = db.Column(db.Integer, db.ForeignKey("purchase.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    product = db.relationship("Product")
+
+
+class Sale(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    reference = db.Column(db.String(50), unique=True, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customer.id"), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default="Completed")
+    items = db.relationship("SaleItem", backref="sale", cascade="all, delete-orphan")
+
+
+class SaleItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey("sale.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    product = db.relationship("Product")
+
+
+class StockMovement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey("product.id"), nullable=False)
+    qty_change = db.Column(db.Integer, nullable=False)
+    type = db.Column(db.String(20), nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    reference = db.Column(db.String(50))
+    product = db.relationship("Product")
+
+
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+    category = db.Column(db.String(50))
+
+
+# ==========================================
+# FILE: app/routes.py
+# ==========================================
+from datetime import datetime
+from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask_login import login_required, login_user, logout_user
+from app import db
+from app.models import (
+    Customer,
+    Product,
+    Sale,
+    SaleItem,
+    StockMovement,
+    Purchase,
+    Expense,
     User,
 )
-from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import login_required, login_user, logout_user
 
 main = Blueprint("main", __name__)
 
@@ -201,7 +365,7 @@ def return_sale(id):
     for item in sale.items:
         prod = Product.query.get(item.product_id)
         if prod:
-            prod.stock += item.keyword if hasattr(item, "keyword") else item.quantity
+            prod.stock += item.quantity
             db.session.add(
                 StockMovement(
                     product_id=prod.id,
