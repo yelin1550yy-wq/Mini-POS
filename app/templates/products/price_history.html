@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.product_code }} - Price History - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-clock-history me-2"></i>{{ product.product_code }} - {{ product.item_name }}</h2>
+    <div>
+        <a href="{{ url_for('products.index') }}" class="btn btn-outline-secondary">Back to Products</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Current Reference Price</div>
+                <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(product.reference_selling_price) }} Ks</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Weighted Avg Cost (COGS)</div>
+                <div class="fw-bold fs-4 text-info">{{ "{:,.0f}".format(product.get_weighted_average_cost()) }} Ks</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Latest Purchase Ref. Price</div>
+                <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(product.get_latest_purchase_reference_price()) }} Ks</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Purchase Price History</h5>
+        {% if current_user.is_admin() %}
+        <form method="POST" action="{{ url_for('products.set_reference_price', id=product.id) }}" class="d-flex gap-2 align-items-center">
+            <input type="number" name="reference_price" class="form-control form-control-sm" style="width: 150px;" step="0.01" min="0" placeholder="New ref price" required>
+            <button type="submit" class="btn btn-sm btn-primary">Update Reference Price</button>
+        </form>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        {% if history %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Purchase No.</th>
+                        <th>Supplier</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Unit Cost</th>
+                        <th class="text-end">Reference Price</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    <tr>
+                        <td>{{ h.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ h.purchase_no }}</td>
+                        <td>{{ h.supplier }}</td>
+                        <td class="text-center">{{ h.quantity }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(h.unit_price) }} Ks</td>
+                        <td class="text-end fw-bold">{{ "{:,.0f}".format(h.reference_price) }} Ks</td>
+                        <td class="text-end">{{ "{:,.0f}".format(h.total_price) }} Ks</td>
+                        <td class="text-center">
+                            {% if current_user.is_admin() %}
+                            <form method="POST" action="{{ url_for('products.set_reference_price', id=product.id) }}" class="d-inline">
+                                <input type="hidden" name="reference_price" value="{{ h.reference_price }}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary" title="Use this as reference price">
+                                    <i class="bi bi-check-circle"></i> Use
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">No purchase history for this product</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Price Selection Guide</h5>
+    </div>
+    <div class="card-body">
+        <ul class="mb-0">
+            <li><strong>Unit Cost (Actual):</strong> The actual purchase cost per unit - used for COGS and weighted average cost calculation</li>
+            <li><strong>Reference Price:</strong> The price you want to use as reference for this batch - manually entered during purchase</li>
+            <li><strong>Current Reference Price:</strong> The master reference price for sales (shown in product list) - can be updated from history above</li>
+            <li><strong>Weighted Avg Cost:</strong> Automatically calculated from all purchase costs - used for profit calculation</li>
+        </ul>
+        <p class="text-muted small mt-2">Click "Use" on any historical reference price to set it as the current master reference price for sales.</p>
+    </div>
+</div>
+{% endblock %}

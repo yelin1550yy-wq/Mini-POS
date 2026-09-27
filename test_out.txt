@@ -1,0 +1,4 @@
+SP001 | စပန့် အမျိုးအစား ၁ | stock=0 | avg=0
+CN001 | ချည်နု အမျိုးအစား ၁ | stock=0 | avg=0
+Supplier: Test Supplier
+Supplier: Test Supplier

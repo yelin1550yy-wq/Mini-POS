@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Expenses - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-cash-stack me-2"></i>Expenses</h2>
+    <a href="{{ url_for('expenses.create') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>New Expense
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-danger bg-opacity-10 text-danger me-3">
+                        <i class="bi bi-bullseye"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Advertisement</div>
+                        <div class="fw-bold fs-4 text-danger">{{ "{:,.0f}".format(total_adv) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-dark bg-opacity-10 text-dark me-3">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Other Costs</div>
+                        <div class="fw-bold fs-4 text-dark">{{ "{:,.0f}".format(total_other) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-secondary bg-opacity-10 text-secondary me-3">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Expenses</div>
+                        <div class="fw-bold fs-4 text-secondary">{{ "{:,.0f}".format(total_expenses) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-2">
+                <select name="category" class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option value="advertisement" {% if category_filter == 'advertisement' %}selected{% endif %}>Advertisement</option>
+                    <option value="other" {% if category_filter == 'other' %}selected{% endif %}>Other Cost</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="sub_category" class="form-select" id="subCategoryFilter">
+                    <option value="">All Sub-Categories</option>
+                    {% for cat, subs in categories.items() %}
+                        {% if category_filter == cat or not category_filter %}
+                            {% for s in subs %}
+                            <option value="{{ s }}" {% if sub_category_filter == s %}selected{% endif %}>{{ s }}</option>
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('expenses.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Sub-Category</th>
+                        <th>Description</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for expense in expenses.items %}
+                    <tr>
+                        <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'danger' if expense.category == 'advertisement' else 'dark' }}">
+                                {{ expense.category|title }}
+                            </span>
+                        </td>
+                        <td>{{ expense.sub_category }}</td>
+                        <td>{{ expense.description or '-' }}</td>
+                        <td class="text-end fw-bold">{{ "{:,.0f}".format(expense.amount) }} Ks</td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('expenses.edit', id=expense.id) }}" class="btn btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
+                                {% if current_user.is_admin() %}
+                                <form method="POST" action="{{ url_for('expenses.delete', id=expense.id) }}" class="d-inline" onsubmit="return confirm('Delete this expense?');">
+                                    <button type="submit" class="btn btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No expenses found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if expenses.pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Expenses pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if expenses.has_prev %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('expenses.index', page=expenses.prev_num, category=category_filter, sub_category=sub_category_filter, date_from=date_from, date_to=date_to) }}">Previous</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+                    {% for page_num in expenses.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == expenses.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('expenses.index', page=page_num, category=category_filter, sub_category=sub_category_filter, date_from=date_from, date_to=date_to) }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if expenses.has_next %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('expenses.index', page=expenses.next_num, category=category_filter, sub_category=sub_category_filter, date_from=date_from, date_to=date_to) }}">Next</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categoryFilter = document.getElementById('categoryFilter');
+    const subCategoryFilter = document.getElementById('subCategoryFilter');
+    const categories = {{ categories|tojson }};
+    
+    function updateSubCategories() {
+        const cat = categoryFilter.value;
+        const subs = categories[cat] || [];
+        const currentVal = subCategoryFilter.value;
+        
+        subCategoryFilter.innerHTML = '<option value="">All Sub-Categories</option>';
+        subs.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === currentVal) opt.selected = true;
+            subCategoryFilter.appendChild(opt);
+        });
+    }
+    
+    categoryFilter.addEventListener('change', updateSubCategories);
+    updateSubCategories();
+});
+</script>
+{% endblock %}

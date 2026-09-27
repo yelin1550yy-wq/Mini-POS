@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-text me-2"></i>{{ report_title }}</h2>
+    <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('reports.view', report_type='sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Sales</a>
+        <a href="{{ url_for('reports.view', report_type='purchases', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Purchases</a>
+        <a href="{{ url_for('reports.view', report_type='stock', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Stock</a>
+        <a href="{{ url_for('reports.view', report_type='stock_movement', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Movement</a>
+        <a href="{{ url_for('reports.view', report_type='product_sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Product Sales</a>
+        <a href="{{ url_for('reports.view', report_type='top_selling', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Top Selling</a>
+        <a href="{{ url_for('reports.view', report_type='gross_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Gross Profit</a>
+        <a href="{{ url_for('reports.view', report_type='net_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-primary">Net Profit</a>
+        <a href="{{ url_for('reports.view', report_type='adv_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Adv. Expense</a>
+        <a href="{{ url_for('reports.view', report_type='other_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Other Expense</a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <input type="hidden" name="report_type" value="net_profit">
+            <div class="col-md-2">
+                <label class="form-label">Period</label>
+                <select name="period" class="form-select">
+                    <option value="today" {% if period == 'today' %}selected{% endif %}>Today</option>
+                    <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From</label>
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To</label>
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('reports.view', report_type='net_profit') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-primary bg-opacity-10 text-primary me-3">
+                        <i class="bi bi-currency-dollar"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Sales Revenue</div>
+                        <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(total_sales) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-info bg-opacity-10 text-info me-3">
+                        <i class="bi bi-box"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">COGS</div>
+                        <div class="fw-bold fs-4 text-info">{{ "{:,.0f}".format(total_cogs) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-success bg-opacity-10 text-success me-3">
+                        <i class="bi bi-graph-up"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Gross Profit</div>
+                        <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(gross_profit) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-{{ 'success' if net_profit >= 0 else 'danger' }} bg-opacity-10 text-{{ 'success' if net_profit >= 0 else 'danger' }} me-3">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Net Profit</div>
+                        <div class="fw-bold fs-4 text-{{ 'success' if net_profit >= 0 else 'danger' }}">{{ "{:,.0f}".format(net_profit) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card stats-card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bullseye me-2 text-danger"></i>Advertisement Expenses</h5>
+            </div>
+            <div class="card-body">
+                {% if adv_by_cat %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Platform</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cat, amt in adv_by_cat.items() %}
+                            <tr>
+                                <td>{{ cat }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(amt) }} Ks</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th class="text-end">Total Adv:</th>
+                                <th class="text-end text-danger">{{ "{:,.0f}".format(total_adv) }} Ks</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-3">No advertisement expenses</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card stats-card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-gear me-2 text-dark"></i>Other Expenses</h5>
+            </div>
+            <div class="card-body">
+                {% if other_by_cat %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Category</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cat, amt in other_by_cat.items() %}
+                            <tr>
+                                <td>{{ cat }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(amt) }} Ks</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th class="text-end">Total Other:</th>
+                                <th class="text-end text-dark">{{ "{:,.0f}".format(total_other) }} Ks</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-3">No other expenses</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Profit Calculation Breakdown</h5>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(total_sales) }}</div>
+                <div class="text-muted small">Sales Revenue</div>
+            </div>
+            <div class="col-md-1 text-center align-self-center fs-3">-</div>
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-info">{{ "{:,.0f}".format(total_cogs) }}</div>
+                <div class="text-muted small">COGS</div>
+            </div>
+            <div class="col-md-1 text-center align-self-center fs-3">=</div>
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(gross_profit) }}</div>
+                <div class="text-muted small">Gross Profit</div>
+            </div>
+            <div class="col-md-1 text-center align-self-center fs-3">-</div>
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-danger">{{ "{:,.0f}".format(total_adv) }}</div>
+                <div class="text-muted small">Adv. Expenses</div>
+            </div>
+            <div class="col-md-1 text-center align-self-center fs-3">-</div>
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-dark">{{ "{:,.0f}".format(total_other) }}</div>
+                <div class="text-muted small">Other Expenses</div>
+            </div>
+            <div class="col-md-1 text-center align-self-center fs-3">=</div>
+            <div class="col-md-2">
+                <div class="fw-bold fs-4 text-{{ 'success' if net_profit >= 0 else 'danger' }}">{{ "{:,.0f}".format(net_profit) }}</div>
+                <div class="text-muted small">Net Profit</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

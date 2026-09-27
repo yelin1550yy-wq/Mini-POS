@@ -1,0 +1,608 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Mini POS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .item-row { transition: all 0.2s; }
+    .item-row:hover { background-color: #f8f9fa; }
+    .product-select { min-width: 200px; }
+    .profit-positive { color: #198754; }
+    .profit-negative { color: #dc3545; }
+    .tier-badge { font-size: 0.85rem; }
+    .discount-box { background: #f8f9fa; border: 1px solid #dee2e6; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="card-title mb-0"><i class="bi bi-cart-check me-2"></i>{{ title }}</h3>
+            <a href="{{ url_for('sales.index') }}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+        
+        <form method="POST" id="saleForm" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    {{ form.sale_no.label(class="form-label") }}
+                    {{ form.sale_no(class="form-control") }}
+                    {% for error in form.sale_no.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-3">
+                    {{ form.date.label(class="form-label") }}
+                    {{ form.date(class="form-control", type="date") }}
+                    {% for error in form.date.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-5">
+                    {{ form.customer_id.label(class="form-label") }}
+                    {{ form.customer_id(class="form-select", id="customerSelect") }}
+                    {% for error in form.customer_id.errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Sales Channel Selection -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Sales Channel <span class="text-danger">*</span></label>
+                    <select name="channel" class="form-select" required>
+                        <option value="Direct Sale">Direct Sale</option>
+                        <option value="Online Sale">Online Sale</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Customer Tier & Discount Info -->
+            <div class="row mb-3" id="tierInfo" style="display: none;">
+                <div class="col-md-4">
+                    <label class="form-label">Customer Tier</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="bi bi-award"></i></span>
+                        <input type="text" class="form-control" id="tierDisplay" readonly>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Tier Discount %</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="tierDiscount" readonly step="0.01">
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Applied Discount % <span class="text-danger">*</span></label>
+                    <div class="input-group discount-box">
+                        <input type="number" class="form-control" id="appliedDiscount" name="discount_percent" step="0.01" min="0" max="100" value="0" required>
+                        <span class="input-group-text">%</span>
+                    </div>
+                    <div class="form-text">Auto-filled from tier. Edit to override for this sale.</div>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                {{ form.notes.label(class="form-label") }}
+                {{ form.notes(class="form-control", rows="2", placeholder="Notes") }}
+                {% for error in form.notes.errors %}
+                    <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+            </div>
+            
+            <hr>
+            
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Sale Items</h5>
+                <button type="button" id="addItemBtn" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus-lg me-1"></i>Add Item
+                </button>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered" id="itemsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 30%">Product</th>
+                            <th style="width: 10%" class="text-center">Stock</th>
+                            <th style="width: 10%" class="text-center">Qty</th>
+                            <th style="width: 13%" class="text-end">Ref. Price</th>
+                            <th style="width: 13%" class="text-end">Actual Price</th>
+                            <th style="width: 13%" class="text-end">Total</th>
+                            <th style="width: 5%"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        {% if sale and sale.items %}
+                            {% for item in sale.items %}
+                            <tr class="item-row" data-product-id="{{ item.product_id }}">
+                                <td>
+                                    <input type="hidden" name="product_id[]" value="{{ item.product_id }}">
+                                    <select name="product_id_display[]" class="form-select product-select" disabled>
+                                        <option value="{{ item.product_id }}" selected>{{ item.product.product_code }} - {{ item.product.item_name }}</option>
+                                    </select>
+                                </td>
+                                <td class="text-center stock-cell">{{ item.product.get_current_stock() }}</td>
+                                <td><input type="number" name="quantity[]" class="form-control form-control-sm text-center qty-input" value="{{ item.quantity }}" min="1" required></td>
+                                <td><input type="number" name="reference_price[]" class="form-control form-control-sm text-end ref-price-input" value="{{ item.reference_price }}" step="0.01" min="0" readonly></td>
+                                <td><input type="number" name="actual_price[]" class="form-control form-control-sm text-end actual-price-input" value="{{ item.actual_price }}" step="0.01" min="0" required></td>
+                                <td class="text-end total-cell fw-bold">{{ "{:,.0f}".format(item.total_price) }}</td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Remove"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if not sale or not sale.items %}
+            <div class="text-center text-muted py-3" id="emptyState">
+                No items added yet. Click "Add Item" to start.
+            </div>
+            {% endif %}
+            
+            <!-- Subtotal, Discount, Grand Total, Est. Profit -->
+            <div class="row mt-3">
+                <div class="col-md-6"></div>
+                <div class="col-md-3 text-end">
+                    <strong>Subtotal:</strong>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-control form-control-lg text-end fw-bold" id="subtotal">0</div>
+                </div>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-md-6"></div>
+                <div class="col-md-3 text-end">
+                    <strong>Discount (<span id="discountPercentDisplay">0</span>%):</strong>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-control form-control-lg text-end fw-bold text-warning" id="discountAmount">0</div>
+                </div>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-md-6"></div>
+                <div class="col-md-3 text-end">
+                    <strong>Grand Total:</strong>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-control form-control-lg text-end fw-bold text-primary" id="grandTotal">0</div>
+                </div>
+            </div>
+            
+            <div class="row mt-2">
+                <div class="col-md-6"></div>
+                <div class="col-md-3 text-end">
+                    <strong>Est. Profit:</strong>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-control form-control-lg text-end fw-bold" id="grandProfit">0</div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-primary btn-lg") }}
+                <a href="{{ url_for('sales.index') }}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Product search modal -->
+<div class="modal fade" id="productModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-search me-2"></i>Select Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="productSearch" class="form-control mb-3" placeholder="Search products...">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="productTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th class="text-end">Ref. Price</th>
+                                <th class="text-center">Stock</th>
+                                <th class="text-end">Avg Cost</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reference Price History Modal -->
+<div class="modal fade" id="priceHistoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Select Reference Price</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">Choose a reference price from purchase history or enter custom:</p>
+                <div class="mb-3">
+                    <label class="form-label">Custom Reference Price</label>
+                    <div class="input-group">
+                        <span class="input-group-text">Ks</span>
+                        <input type="number" id="customRefPrice" class="form-control" step="0.01" min="0" placeholder="Enter custom price">
+                    </div>
+                </div>
+                <hr>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="priceHistoryTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Purchase No.</th>
+                                <th>Supplier</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Unit Cost</th>
+                                <th class="text-end">Reference Price</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                {% if not history or history|length == 0 %}
+                <div class="text-center text-muted py-3">No purchase history for this product</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const productsData = {{ products|tojson }};
+    const itemsBody = document.getElementById('itemsBody');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const emptyState = document.getElementById('emptyState');
+    const subtotalEl = document.getElementById('subtotal');
+    const discountAmountEl = document.getElementById('discountAmount');
+    const discountPercentDisplayEl = document.getElementById('discountPercentDisplay');
+    const grandTotalEl = document.getElementById('grandTotal');
+    const grandProfitEl = document.getElementById('grandProfit');
+    const tierInfoEl = document.getElementById('tierInfo');
+    const tierDisplayEl = document.getElementById('tierDisplay');
+    const tierDiscountEl = document.getElementById('tierDiscount');
+    const appliedDiscountEl = document.getElementById('appliedDiscount');
+    const productModalEl = document.getElementById('productModal');
+    const priceHistoryModalEl = document.getElementById('priceHistoryModal');
+    const customerSelect = document.getElementById('customerSelect');
+    let productModal = null;
+    let priceHistoryModal = null;
+    let currentRow = null;
+    let currentProductId = null;
+    
+    // Initialize modals
+    function initModals() {
+        if (productModalEl && !productModal) {
+            try {
+                productModal = new bootstrap.Modal(productModalEl, { backdrop: 'static', keyboard: false });
+            } catch (e) {
+                console.error('Failed to initialize productModal:', e);
+            }
+        }
+        if (priceHistoryModalEl && !priceHistoryModal) {
+            try {
+                priceHistoryModal = new bootstrap.Modal(priceHistoryModalEl, { backdrop: 'static', keyboard: false });
+            } catch (e) {
+                console.error('Failed to initialize priceHistoryModal:', e);
+            }
+        }
+    }
+    
+    // Initialize on DOM ready
+    initModals();
+    
+    function renderProductTable(filter = '') {
+        const tbody = document.querySelector('#productTable tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        
+        const filtered = productsData.filter(p => 
+            p.product_code.toLowerCase().includes(filter.toLowerCase()) ||
+            p.item_name.toLowerCase().includes(filter.toLowerCase())
+        );
+        
+        filtered.forEach(p => {
+            const stockClass = p.current_stock <= 0 ? 'text-danger' : (p.current_stock <= 10 ? 'text-warning' : '');
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.innerHTML = `
+                <td><strong>${p.product_code}</strong></td>
+                <td>${p.item_name}</td>
+                <td class="text-end">${formatNumber(p.reference_price)}</td>
+                <td class="text-center ${stockClass} fw-bold">${p.current_stock}</td>
+                <td class="text-end">${formatNumber(p.avg_cost)}</td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-primary select-product" 
+                            data-id="${p.id}" 
+                            data-code="${p.product_code}" 
+                            data-name="${p.item_name}"
+                            data-stock="${p.current_stock}"
+                            data-ref-price="${p.reference_price}"
+                            data-avg-cost="${p.avg_cost}">Select</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    
+    const productSearch = document.getElementById('productSearch');
+    if (productSearch) {
+        productSearch.addEventListener('input', function() {
+            renderProductTable(this.value);
+        });
+    }
+    
+    const productTable = document.querySelector('#productTable');
+    if (productTable) {
+        productTable.addEventListener('click', function(e) {
+            if (e.target.classList.contains('select-product') && currentRow) {
+                selectProduct(currentRow, {
+                    id: e.target.dataset.id,
+                    code: e.target.dataset.code,
+                    name: e.target.dataset.name,
+                    stock: parseInt(e.target.dataset.stock),
+                    refPrice: parseFloat(e.target.dataset.refPrice),
+                    avgCost: parseFloat(e.target.dataset.avgCost)
+                });
+                if (productModal) productModal.hide();
+            }
+        });
+    }
+    
+    if (addItemBtn) {
+        addItemBtn.addEventListener('click', function() {
+            initModals(); // Ensure modals are initialized
+            currentRow = createItemRow();
+            itemsBody.appendChild(currentRow);
+            if (emptyState) emptyState.style.display = 'none';
+            renderProductTable('');
+            if (productModal) {
+                productModal.show();
+            } else {
+                console.error('productModal not available');
+                alert('Error: Product modal not initialized. Please refresh the page.');
+            }
+        });
+    }
+    
+    function createItemRow() {
+        const tr = document.createElement('tr');
+        tr.className = 'item-row';
+        tr.innerHTML = `
+            <td>
+                <input type="hidden" name="product_id[]" class="product-id-input">
+                <button type="button" class="btn btn-outline-secondary w-100 text-start product-select-btn" disabled>
+                    <span class="product-code-text">Select product...</span>
+                </button>
+            </td>
+            <td class="text-center stock-cell text-muted">-</td>
+            <td><input type="number" name="quantity[]" class="form-control form-control-sm text-center qty-input" value="1" min="1" required></td>
+            <td><input type="number" name="reference_price[]" class="form-control form-control-sm text-end ref-price-input" value="0" step="0.01" min="0" readonly></td>
+            <td><input type="number" name="actual_price[]" class="form-control form-control-sm text-end actual-price-input" value="0" step="0.01" min="0" required></td>
+            <td class="text-end total-cell fw-bold">0</td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Remove"><i class="bi bi-trash"></i></button>
+            </td>
+        `;
+        
+        const selectBtn = tr.querySelector('.product-select-btn');
+        selectBtn.addEventListener('click', function() {
+            currentRow = tr;
+            initModals();
+            if (productModal) {
+                productModal.show();
+                renderProductTable('');
+            }
+        });
+        
+        const qtyInput = tr.querySelector('.qty-input');
+        const actualPriceInput = tr.querySelector('.actual-price-input');
+        qtyInput.addEventListener('input', () => updateRow(tr));
+        actualPriceInput.addEventListener('input', () => updateRow(tr));
+        
+        tr.querySelector('.remove-item').addEventListener('click', function() {
+            tr.remove();
+            updateTotals();
+            if (itemsBody.children.length === 0 && emptyState) emptyState.style.display = 'block';
+        });
+        
+        return tr;
+    }
+    
+    function selectProduct(row, product) {
+        if (product.stock <= 0) {
+            if (!confirm('Warning: This product is out of stock! Continue anyway?')) {
+                return;
+            }
+        }
+        
+        row.dataset.productId = product.id;
+        row.dataset.originalStock = product.stock;
+        row.querySelector('.product-id-input').value = product.id;
+        row.querySelector('.product-code-text').textContent = `${product.code} - ${product.name}`;
+        row.querySelector('.product-select-btn').disabled = false;
+        row.querySelector('.product-select-btn').classList.remove('btn-outline-secondary');
+        row.querySelector('.product-select-btn').classList.add('btn-outline-primary');
+        
+        row.querySelector('.stock-cell').textContent = product.stock;
+        row.querySelector('.stock-cell').classList.remove('text-muted');
+        if (product.stock <= 0) row.querySelector('.stock-cell').classList.add('text-danger');
+        else if (product.stock <= 10) row.querySelector('.stock-cell').classList.add('text-warning');
+        
+        row.querySelector('.ref-price-input').value = product.refPrice.toFixed(2);
+        row.querySelector('.actual-price-input').value = product.refPrice.toFixed(2);
+        
+        currentProductId = product.id;
+        
+        // Fetch price history in background, don't show modal automatically
+        fetchPriceHistory(product.id, row);
+        
+        updateRow(row);
+    }
+    
+    function updateRow(row) {
+        const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+        const actualPrice = parseFloat(row.querySelector('.actual-price-input').value) || 0;
+        const refPrice = parseFloat(row.querySelector('.ref-price-input').value) || 0;
+        const total = qty * actualPrice;
+        
+        row.querySelector('.total-cell').textContent = formatNumber(total, 2);
+        
+        const originalStock = parseInt(row.dataset.originalStock) || 0;
+        if (originalStock > 0) {
+            const remaining = originalStock - qty;
+            row.querySelector('.stock-cell').textContent = remaining;
+            if (remaining <= 0) row.querySelector('.stock-cell').classList.add('text-danger');
+            else if (remaining <= 10) row.querySelector('.stock-cell').classList.add('text-warning');
+            else row.querySelector('.stock-cell').classList.remove('text-danger', 'text-warning');
+        }
+        
+        updateTotals();
+    }
+    
+    // Fetch price history for a product (for reference, not auto-show modal)
+    function fetchPriceHistory(productId, row) {
+        fetch(`/api/products/${productId}/price-history`)
+            .then(response => response.json())
+            .then(data => {
+                // Store history in row for later use if user clicks a "price history" button
+                row.dataset.priceHistory = JSON.stringify(data.history || []);
+                row.dataset.referencePrice = data.reference_price || 0;
+            })
+            .catch(error => {
+                console.error('Error fetching price history:', error);
+            });
+    }
+    
+    function updateTotals() {
+        let subtotal = 0;
+        let totalCost = 0;
+        
+        document.querySelectorAll('.item-row').forEach(row => {
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            const actualPrice = parseFloat(row.querySelector('.actual-price-input').value) || 0;
+            const productId = row.dataset.productId;
+            
+            const product = productsData.find(p => p.id == productId);
+            const avgCost = product ? product.avg_cost : 0;
+            
+            subtotal += qty * actualPrice;
+            totalCost += qty * avgCost;
+        });
+        
+        // Get applied discount percentage
+        const discountPercent = parseFloat(appliedDiscountEl.value) || 0;
+        const discountAmount = subtotal * (discountPercent / 100);
+        const grandTotal = subtotal - discountAmount;
+        const profit = grandTotal - totalCost;
+        
+        // Update UI
+        subtotalEl.textContent = formatNumber(subtotal, 2);
+        discountAmountEl.textContent = formatNumber(discountAmount, 2);
+        discountPercentDisplayEl.textContent = discountPercent.toFixed(2);
+        grandTotalEl.textContent = formatNumber(grandTotal, 2);
+        grandProfitEl.textContent = formatNumber(profit, 2);
+        grandProfitEl.className = 'form-control form-control-lg text-end fw-bold ' + (profit >= 0 ? 'profit-positive' : 'profit-negative');
+    }
+    
+    function formatNumber(num, decimals = 0) {
+        return Number(num).toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    }
+    
+    // Customer selection change handler
+    if (customerSelect) {
+        customerSelect.addEventListener('change', function() {
+            const customerId = this.value;
+            if (customerId && customerId !== '0') {
+                fetch(`/api/customer/${customerId}/tier`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.customer_id) {
+                            tierInfoEl.style.display = 'flex';
+                            tierDisplayEl.value = data.tier;
+                            tierDiscountEl.value = data.discount_percent.toFixed(2);
+                            appliedDiscountEl.value = data.discount_percent.toFixed(2);
+                            updateTotals();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching customer tier:', error);
+                        tierInfoEl.style.display = 'none';
+                    });
+            } else {
+                tierInfoEl.style.display = 'none';
+                appliedDiscountEl.value = '0';
+                updateTotals();
+            }
+        });
+    }
+    
+    // Applied discount change handler
+    if (appliedDiscountEl) {
+        appliedDiscountEl.addEventListener('input', function() {
+            updateTotals();
+        });
+    }
+    
+    // Initialize existing rows (for edit mode)
+    document.querySelectorAll('.item-row').forEach(row => {
+        const selectBtn = row.querySelector('.product-select-btn');
+        if (selectBtn) {
+            selectBtn.addEventListener('click', function() {
+                currentRow = row;
+                initModals();
+                if (productModal) {
+                    productModal.show();
+                    renderProductTable('');
+                }
+            });
+        }
+        const qtyInput = row.querySelector('.qty-input');
+        const actualPriceInput = row.querySelector('.actual-price-input');
+        if (qtyInput) qtyInput.addEventListener('input', () => updateRow(row));
+        if (actualPriceInput) actualPriceInput.addEventListener('input', () => updateRow(row));
+        
+        const removeBtn = row.querySelector('.remove-item');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                row.remove();
+                updateTotals();
+                if (itemsBody.children.length === 0 && emptyState) emptyState.style.display = 'block';
+            });
+        }
+        
+        updateRow(row);
+    });
+    
+    updateTotals();
+});
+</script>
+{% endblock %}

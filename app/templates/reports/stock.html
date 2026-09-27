@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-text me-2"></i>{{ report_title }}</h2>
+    <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('reports.view', report_type='sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Sales</a>
+        <a href="{{ url_for('reports.view', report_type='purchases', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Purchases</a>
+        <a href="{{ url_for('reports.view', report_type='stock', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-primary">Stock</a>
+        <a href="{{ url_for('reports.view', report_type='stock_movement', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Movement</a>
+        <a href="{{ url_for('reports.view', report_type='product_sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Product Sales</a>
+        <a href="{{ url_for('reports.view', report_type='top_selling', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Top Selling</a>
+        <a href="{{ url_for('reports.view', report_type='gross_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Gross Profit</a>
+        <a href="{{ url_for('reports.view', report_type='net_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Net Profit</a>
+        <a href="{{ url_for('reports.view', report_type='adv_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Adv. Expense</a>
+        <a href="{{ url_for('reports.view', report_type='other_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Other Expense</a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Total Stock Value: <strong class="text-primary">{{ "{:,.0f}".format(total_value) }} Ks</strong></h5>
+            <a href="#" onclick="window.print()" class="btn btn-outline-success btn-sm"><i class="bi bi-printer me-1"></i>Print</a>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product Code</th>
+                        <th>Item Name</th>
+                        <th>Type</th>
+                        <th class="text-center">Current Stock</th>
+                        <th class="text-end">Avg Cost</th>
+                        <th class="text-end">Ref. Price</th>
+                        <th class="text-end">Stock Value</th>
+                        <th class="text-center">Min Stock</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in product_data %}
+                    <tr>
+                        <td><strong>{{ item.product.product_code }}</strong></td>
+                        <td>{{ item.product.item_name }}</td>
+                        <td>{{ item.product.product_type }}</td>
+                        <td class="text-center fw-bold {% if item.current_stock <= 0 %}text-danger{% elif item.current_stock <= item.product.minimum_stock %}text-warning{% endif %}">
+                            {{ item.current_stock }}
+                        </td>
+                        <td class="text-end">{{ "{:,.0f}".format(item.avg_cost) }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(item.product.reference_selling_price) }}</td>
+                        <td class="text-end fw-bold">{{ "{:,.0f}".format(item.stock_value) }}</td>
+                        <td class="text-center">{{ item.product.minimum_stock }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{{ 'success' if item.status == 'Normal' else 'warning' if item.status == 'Low Stock' else 'danger' }}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">No products found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Stock Movement - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-arrow-left-right me-2"></i>Stock Movement History</h2>
+    <a href="{{ url_for('stock.index') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-boxes me-1"></i>Current Stock
+    </a>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <select name="product" class="form-select">
+                    <option value="">All Products</option>
+                    {% for p in products %}
+                    <option value="{{ p.id }}" {% if product_filter == p.id %}selected{% endif %}>{{ p.product_code }} - {{ p.item_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for t in trans_types %}
+                    <option value="{{ t }}" {% if type_filter == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-1">
+                <a href="{{ url_for('stock.movement') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Type</th>
+                        <th>Reference No.</th>
+                        <th>Product</th>
+                        <th class="text-center">Qty In</th>
+                        <th class="text-center">Qty Out</th>
+                        <th class="text-center">Balance</th>
+                        <th class="text-end">Unit Cost</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movements.items %}
+                    <tr>
+                        <td>{{ m.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if m.transaction_type == 'Purchase' else 'primary' if m.transaction_type == 'Sale' else 'info' if m.transaction_type == 'Customer Return' else 'warning' if m.transaction_type in ['Damaged/Lost', 'Adjustment'] else 'secondary' }}">
+                                {{ m.transaction_type }}
+                            </span>
+                        </td>
+                        <td><strong>{{ m.reference_no }}</strong></td>
+                        <td>{{ m.product.product_code }} - {{ m.product.item_name }}</td>
+                        <td class="text-center {% if m.quantity_in > 0 %}text-success fw-bold{% endif %}">{{ m.quantity_in if m.quantity_in > 0 else '-' }}</td>
+                        <td class="text-center {% if m.quantity_out > 0 %}text-danger fw-bold{% endif %}">{{ m.quantity_out if m.quantity_out > 0 else '-' }}</td>
+                        <td class="text-center fw-bold">{{ m.balance }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(m.unit_cost) if m.unit_cost else '-' }}</td>
+                        <td>{{ m.notes or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">No stock movements found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if movements.pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Movement pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if movements.has_prev %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('stock.movement', page=movements.prev_num, product=product_filter, type=type_filter, date_from=date_from, date_to=date_to) }}">Previous</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+                    {% for page_num in movements.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == movements.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('stock.movement', page=page_num, product=product_filter, type=type_filter, date_from=date_from, date_to=date_to) }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if movements.has_next %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('stock.movement', page=movements.next_num, product=product_filter, type=type_filter, date_from=date_from, date_to=date_to) }}">Next</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

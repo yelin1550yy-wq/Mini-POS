@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Capital Management - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-cash-stack me-2"></i>Capital Management</h2>
+    <a href="{{ url_for('dashboard.capital_add') }}" class="btn btn-success">
+        <i class="bi bi-plus-lg me-1"></i>Add Capital
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-success bg-opacity-10 text-success me-3">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Capital</div>
+                        <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(total_capital) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-primary bg-opacity-10 text-primary me-3">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Injections</div>
+                        <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(total_injections) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-danger bg-opacity-10 text-danger me-3">
+                        <i class="bi bi-dash-circle"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Withdrawals</div>
+                        <div class="fw-bold fs-4 text-danger">{{ "{:,.0f}".format(total_withdrawals) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th class="text-end">Amount</th>
+                        <th>Description</th>
+                        <th class="text-center">Recorded By</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for capital in capitals.items %}
+                    <tr>
+                        <td>{{ capital.date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if capital.type == 'injection' else 'danger' }}">
+                                {{ capital.type|capitalize }}
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold text-{{ 'success' if capital.type == 'injection' else 'danger' }}">
+                            {{ "{:,.2f}".format(capital.amount) }} Ks
+                        </td>
+                        <td>{{ capital.description or '-' }}</td>
+                        <td class="text-center">{{ capital.created_by_user.username if capital.created_by_user else 'System' }}</td>
+                        <td class="text-center">
+                            {% if current_user.is_admin() %}
+                            <form method="POST" action="{{ url_for('dashboard.capital_delete', id=capital.id) }}" class="d-inline" onsubmit="return confirm('Delete this capital entry?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No capital entries found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if capitals.pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Capital pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if capitals.has_prev %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('dashboard.capital', page=capitals.prev_num) }}">Previous</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+                    {% for page_num in capitals.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == capitals.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('dashboard.capital', page=page_num) }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if capitals.has_next %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('dashboard.capital', page=capitals.next_num) }}">Next</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Current Stock - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-boxes me-2"></i>Current Stock</h2>
+    <a href="{{ url_for('stock.movement') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left-right me-1"></i>Stock Movement
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-primary bg-opacity-10 text-primary me-3">
+                        <i class="bi bi-currency-dollar"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Stock Value</div>
+                        <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(total_stock_value) }} Ks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-warning bg-opacity-10 text-warning me-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Low Stock Items</div>
+                        <div class="fw-bold fs-4 text-warning">{{ low_stock_count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-danger bg-opacity-10 text-danger me-3">
+                        <i class="bi bi-x-circle"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Out of Stock</div>
+                        <div class="fw-bold fs-4 text-danger">{{ out_of_stock_count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label visually-hidden">Search</label>
+                <input type="text" name="search" class="form-control" placeholder="Search by code or name..." value="{{ search }}">
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for t in product_types %}
+                    <option value="{{ t }}" {% if type_filter == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>Normal</option>
+                    <option value="low" {% if status_filter == 'low' %}selected{% endif %}>Low Stock</option>
+                    <option value="out" {% if status_filter == 'out' %}selected{% endif %}>Out of Stock</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-3">
+                <a href="{{ url_for('stock.index') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Product Code</th>
+                        <th>Item Name</th>
+                        <th>Type</th>
+                        <th class="text-center">Current Stock</th>
+                        <th class="text-end">Avg Cost</th>
+                        <th class="text-end">Ref. Price</th>
+                        <th class="text-end">Stock Value</th>
+                        <th class="text-center">Min Stock</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in pagination.items %}
+                    <tr>
+                        <td><strong>{{ item.product.product_code }}</strong></td>
+                        <td>{{ item.product.item_name }}</td>
+                        <td>{{ item.product.product_type }}</td>
+                        <td class="text-center fw-bold {% if item.current_stock <= 0 %}text-danger{% elif item.current_stock <= item.product.minimum_stock %}text-warning{% endif %}">
+                            {{ item.current_stock }}
+                        </td>
+                        <td class="text-end">{{ "{:,.0f}".format(item.avg_cost) }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(item.product.reference_selling_price) }}</td>
+                        <td class="text-end fw-bold">{{ "{:,.0f}".format(item.stock_value) }}</td>
+                        <td class="text-center">{{ item.product.minimum_stock }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-{{ 'success' if item.status == 'Normal' else 'warning' if item.status == 'Low Stock' else 'danger' }}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('stock.detail', id=item.product.id) }}" class="btn btn-sm btn-outline-primary" title="Details"><i class="bi bi-eye"></i></a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">No products found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if pagination.pages > 1 %}
+        <div class="card-footer">
+            <nav aria-label="Stock pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if pagination.has_prev %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('stock.index', page=pagination.prev_num, search=search, type=type_filter, status=status_filter) }}">Previous</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
+                    {% endif %}
+                    {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                        {% if page_num %}
+                            {% if page_num == pagination.page %}
+                            <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                            {% else %}
+                            <li class="page-item"><a class="page-link" href="{{ url_for('stock.index', page=page_num, search=search, type=type_filter, status=status_filter) }}">{{ page_num }}</a></li>
+                            {% endif %}
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if pagination.has_next %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('stock.index', page=pagination.next_num, search=search, type=type_filter, status=status_filter) }}">Next</a></li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

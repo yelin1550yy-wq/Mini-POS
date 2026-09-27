@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.product_code }} - Stock Details - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-box me-2"></i>{{ product.product_code }} - {{ product.item_name }}</h2>
+    <a href="{{ url_for('stock.index') }}" class="btn btn-outline-secondary">Back to Stock</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Current Stock</div>
+                <div class="fw-bold fs-3 text-{{ 'danger' if current_stock <= 0 else 'warning' if current_stock <= product.minimum_stock else 'success' }}">{{ current_stock }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Average Cost</div>
+                <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(avg_cost) }} Ks</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Reference Price</div>
+                <div class="fw-bold fs-4 text-info">{{ "{:,.0f}".format(product.reference_selling_price) }} Ks</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-3">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="text-muted small">Stock Value</div>
+                <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(current_stock * avg_cost) }} Ks</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cart-plus me-2"></i>Purchase History</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if purchases %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>PO No.</th>
+                                <th>Supplier</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Unit Cost</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pi in purchases %}
+                            <tr>
+                                <td>{{ pi.purchase.date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ pi.purchase.purchase_no }}</td>
+                                <td>{{ pi.purchase.supplier.name }}</td>
+                                <td class="text-center">{{ pi.quantity }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(pi.unit_price) }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(pi.total_price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">No purchase history</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cart-check me-2"></i>Sale History</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if sales %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>SO No.</th>
+                                <th>Customer</th>
+                                <th class="text-center">Qty</th>
+                                <th class="text-end">Sale Price</th>
+                                <th class="text-end">Cost</th>
+                                <th class="text-end">Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for si in sales %}
+                            <tr>
+                                <td>{{ si.sale.date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ si.sale.sale_no }}</td>
+                                <td>{{ si.sale.customer.name if si.sale.customer else 'Walk-in' }}</td>
+                                <td class="text-center">{{ si.quantity }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(si.actual_price) }}</td>
+                                <td class="text-end">{{ "{:,.0f}".format(si.unit_cost) }}</td>
+                                <td class="text-end text-{{ 'success' if si.gross_profit >= 0 else 'danger' }}">{{ "{:,.0f}".format(si.gross_profit) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">No sale history</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Stock Movement History</h5>
+    </div>
+    <div class="card-body p-0">
+        {% if movements %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Type</th>
+                        <th>Reference No.</th>
+                        <th class="text-center">Qty In</th>
+                        <th class="text-center">Qty Out</th>
+                        <th class="text-center">Balance</th>
+                        <th class="text-end">Unit Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movements %}
+                    <tr>
+                        <td>{{ m.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if m.transaction_type == 'Purchase' else 'primary' if m.transaction_type == 'Sale' else 'info' if m.transaction_type == 'Customer Return' else 'warning' if m.transaction_type in ['Damaged/Lost', 'Adjustment'] else 'secondary' }}">
+                                {{ m.transaction_type }}
+                            </span>
+                        </td>
+                        <td>{{ m.reference_no }}</td>
+                        <td class="text-center {% if m.quantity_in > 0 %}text-success{% endif %}">{{ m.quantity_in if m.quantity_in > 0 else '-' }}</td>
+                        <td class="text-center {% if m.quantity_out > 0 %}text-danger{% endif %}">{{ m.quantity_out if m.quantity_out > 0 else '-' }}</td>
+                        <td class="text-center fw-bold">{{ m.balance }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(m.unit_cost) if m.unit_cost else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">No stock movements</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

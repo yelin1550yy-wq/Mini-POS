@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Mini POS{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-text me-2"></i>{{ report_title }}</h2>
+    <div class="btn-group btn-group-sm">
+        <a href="{{ url_for('reports.view', report_type='sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Sales</a>
+        <a href="{{ url_for('reports.view', report_type='purchases', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-primary">Purchases</a>
+        <a href="{{ url_for('reports.view', report_type='stock', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Stock</a>
+        <a href="{{ url_for('reports.view', report_type='stock_movement', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Movement</a>
+        <a href="{{ url_for('reports.view', report_type='product_sales', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Product Sales</a>
+        <a href="{{ url_for('reports.view', report_type='top_selling', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Top Selling</a>
+        <a href="{{ url_for('reports.view', report_type='gross_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Gross Profit</a>
+        <a href="{{ url_for('reports.view', report_type='net_profit', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Net Profit</a>
+        <a href="{{ url_for('reports.view', report_type='adv_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Adv. Expense</a>
+        <a href="{{ url_for('reports.view', report_type='other_expense', period=period, date_from=date_from, date_to=date_to) }}" class="btn btn-outline-primary">Other Expense</a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">Period</label>
+                <select name="period" class="form-select">
+                    <option value="today" {% if period == 'today' %}selected{% endif %}>Today</option>
+                    <option value="week" {% if period == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="month" {% if period == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="year" {% if period == 'year' %}selected{% endif %}>This Year</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From</label>
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To</label>
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Supplier</label>
+                <select name="supplier" class="form-select">
+                    <option value="">All Suppliers</option>
+                    {% for s in suppliers %}
+                    <option value="{{ s.id }}" {% if supplier_filter == s.id %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100"><i class="bi bi-search me-1"></i>Filter</button>
+            </div>
+            <div class="col-md-2">
+                <a href="{{ url_for('reports.view', report_type='purchases') }}" class="btn btn-outline-secondary w-100">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Purchase No.</th>
+                        <th>Supplier</th>
+                        <th>Product</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Unit Price</th>
+                        <th class="text-end">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>{{ row.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ row.purchase_no }}</td>
+                        <td>{{ row.supplier }}</td>
+                        <td><strong>{{ row.product_code }}</strong> - {{ row.item_name }}</td>
+                        <td class="text-center">{{ row.qty }}</td>
+                        <td class="text-end">{{ "{:,.0f}".format(row.unit_price) }}</td>
+                        <td class="text-end fw-bold">{{ "{:,.0f}".format(row.total) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No data found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="4" class="text-end">Totals:</th>
+                        <th class="text-center">{{ total_qty }}</th>
+                        <th></th>
+                        <th class="text-end">{{ "{:,.0f}".format(total_amount) }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
