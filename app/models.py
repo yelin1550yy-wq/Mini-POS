@@ -146,13 +146,13 @@ class Customer(db.Model):
     sales = db.relationship('Sale', backref='customer', lazy='dynamic')
     
     def get_total_buy_items(self):
-        """Get total items purchased in completed sales"""
-        completed_sales = self.sales.filter(Sale.status == 'Completed').all()
+        """Get total items purchased in completed/closed sales"""
+        completed_sales = self.sales.filter(Sale.status.in_(['Completed', 'Closed'])).all()
         return sum(sum(item.quantity for item in s.items) for s in completed_sales)
     
     def get_total_spend(self):
-        """Get total spend in completed sales"""
-        completed_sales = self.sales.filter(Sale.status == 'Completed').all()
+        """Get total spend in completed/closed sales"""
+        completed_sales = self.sales.filter(Sale.status.in_(['Completed', 'Closed'])).all()
         return sum(sum(item.total_price for item in s.items) for s in completed_sales)
     
     def get_tier_config(self):

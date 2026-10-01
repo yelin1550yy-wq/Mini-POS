@@ -75,6 +75,7 @@ def edit(id):
     product = Product.query.get_or_404(id)
     form = ProductForm(obj=product)
     form.product_type.choices = [(t, t) for t in PRODUCT_TYPES]
+    form.product_id.data = str(product.id)
     if form.validate_on_submit():
         product.product_code = form.product_code.data.upper().strip()
         product.item_name = form.item_name.data.strip()
