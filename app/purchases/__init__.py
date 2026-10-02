@@ -264,9 +264,9 @@ def delete(id):
                 current_stock = product.get_current_stock()
                 new_balance = current_stock - item.quantity
                 
+                # Allow deletion even if it would go negative - set to 0
                 if new_balance < 0:
-                    flash(f'Cannot delete: Would result in negative stock for {product.product_code}', 'danger')
-                    return redirect(url_for('purchases.index'))
+                    new_balance = 0
                 
                 movement = StockMovement(
                     date=date.today(),
