@@ -257,32 +257,33 @@ def delete(id):
     purchase = Purchase.query.get_or_404(id)
     
     try:
-        # Reverse stock movements
-        for item in purchase.items:
-            product = item.product
-            current_stock = product.get_current_stock()
-            new_balance = current_stock - item.quantity
-            
-            if new_balance < 0:
-                flash(f'Cannot delete: Would result in negative stock for {product.product_code}', 'danger')
-                return redirect(url_for('purchases.index'))
-            
-            movement = StockMovement(
-                date=date.today(),
-                transaction_type='Purchase Deleted',
-                reference_no=purchase.purchase_no,
-                product_id=product.id,
-                quantity_in=0,
-                quantity_out=item.quantity,
-                balance=new_balance,
-                unit_cost=item.unit_price,
-                notes=f'Reversal of purchase {purchase.purchase_no}'
-            )
-            db.session.add(movement)
+        # Only reverse stock movements if the purchase was Accepted (stock was added)
+        if purchase.status == 'Accepted':
+            for item in purchase.items:
+                product = item.product
+                current_stock = product.get_current_stock()
+                new_balance = current_stock - item.quantity
+                
+                if new_balance < 0:
+                    flash(f'Cannot delete: Would result in negative stock for {product.product_code}', 'danger')
+                    return redirect(url_for('purchases.index'))
+                
+                movement = StockMovement(
+                    date=date.today(),
+                    transaction_type='Purchase Deleted',
+                    reference_no=purchase.purchase_no,
+                    product_id=product.id,
+                    quantity_in=0,
+                    quantity_out=item.quantity,
+                    balance=new_balance,
+                    unit_cost=item.unit_price,
+                    notes=f'Reversal of purchase {purchase.purchase_no}'
+                )
+                db.session.add(movement)
         
         db.session.delete(purchase)
         db.session.commit()
-        flash('Purchase deleted. Stock reversed.', 'success')
+        flash('Purchase deleted.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {str(e)}', 'danger')
