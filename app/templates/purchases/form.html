@@ -78,7 +78,7 @@
                     <tbody id="itemsBody">
                         {% if purchase and purchase.items %}
                             {% for item in purchase.items %}
-                            <tr class="item-row" data-product-id="{{ item.product_id }}">
+                            <tr class="item-row" data-product-id="{{ item.product_id }}" data-original-stock="{{ item.product.get_current_stock() }}">
                                 <td>
                                     <input type="hidden" name="product_id[]" value="{{ item.product_id }}">
                                     <select name="product_id_display[]" class="form-select product-select" disabled>
@@ -298,10 +298,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const total = qty * price;
         row.querySelector('.total-cell').textContent = formatNumber(total, 2);
         
-        // Use original stock from data attribute
-        const originalStock = parseInt(row.dataset.originalStock) || 0;
-        if (originalStock > 0) {
+        // Purchases ADD stock: Stock After = current stock + incoming qty.
+        // Guard on product-selected (attribute present), NOT on stock > 0, so
+        // zero-stock products still compute correctly instead of showing a stale value.
+        if (row.dataset.originalStock !== undefined) {
+            const parsedStock = parseInt(row.dataset.originalStock);
+            const originalStock = Number.isNaN(parsedStock) ? 0 : parsedStock;
             row.querySelector('.stock-after-cell').textContent = originalStock + qty;
+            row.querySelector('.stock-after-cell').classList.remove('text-muted');
         }
         
         updateGrandTotal();
