@@ -44,8 +44,15 @@ class Product(db.Model):
     stock_movements = db.relationship('StockMovement', backref='product', lazy='dynamic')
     
     def get_current_stock(self):
-        """Get current stock - only counts stock from Accepted purchases"""
-        # Stock IN from Accepted purchases
+        """Current stock = Accepted-purchase IN + (Customer Return / Adjustment) IN
+        - Sale OUT (only for sales that still exist) - other non-reversal OUT.
+
+        Outs are joined to their parent row so movements orphaned by a deleted
+        sale/purchase drop out instead of leaving a stale negative balance. The
+        'Sale Deleted' / 'Purchase Deleted' reversal rows are never counted, which
+        keeps each deleted transaction's net contribution at zero.
+        """
+        # Stock IN from Accepted purchases (join drops deleted/non-accepted purchases)
         accepted_purchase_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).join(
             Purchase, StockMovement.reference_no == Purchase.purchase_no
         ).filter(
@@ -60,12 +67,21 @@ class Product(db.Model):
             StockMovement.transaction_type.in_(['Customer Return', 'Adjustment'])
         ).scalar() or 0
         
-        # Stock OUT (all transaction types)
-        total_out = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_out), 0)).filter(
-            StockMovement.product_id == self.id
+        # Stock OUT from sales that still exist (join drops outs orphaned by deleted sales)
+        sale_out = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_out), 0)).join(
+            Sale, StockMovement.reference_no == Sale.sale_no
+        ).filter(
+            StockMovement.product_id == self.id,
+            StockMovement.transaction_type == 'Sale'
         ).scalar() or 0
         
-        return accepted_purchase_in + other_in - total_out
+        # Stock OUT from adjustments/other, excluding sale/purchase rows and their reversals
+        other_out = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_out), 0)).filter(
+            StockMovement.product_id == self.id,
+            StockMovement.transaction_type.notin_(['Sale', 'Purchase', 'Sale Deleted', 'Purchase Deleted'])
+        ).scalar() or 0
+        
+        return accepted_purchase_in + other_in - sale_out - other_out
     
     def get_weighted_average_cost(self):
         purchases = PurchaseItem.query.filter_by(product_id=self.id).all()
