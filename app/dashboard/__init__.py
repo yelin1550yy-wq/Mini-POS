@@ -121,6 +121,7 @@ def index():
                            start_date=start_date,
                            end_date=end_date,
                            total_sales=total_sales,
+                           total_items_sold=total_items_sold,
                            total_purchases=total_purchases,
                            total_cogs=total_cogs,
                            gross_profit=gross_profit,

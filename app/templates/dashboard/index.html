@@ -40,7 +40,7 @@
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-lg-3">
+    <div class="col-12 col-md-6 col-lg">
         <div class="card stats-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center">
@@ -55,7 +55,22 @@
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-lg-3">
+    <div class="col-12 col-md-6 col-lg">
+        <div class="card stats-card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stats-icon bg-dark bg-opacity-10 text-dark me-3">
+                        <i class="bi bi-bag-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Sold Quantity</div>
+                        <div class="fw-bold fs-4 text-dark">{{ "{:,.0f}".format(total_items_sold) }} items</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg">
         <div class="card stats-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center">
@@ -70,7 +85,7 @@
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-lg-3">
+    <div class="col-12 col-md-6 col-lg">
         <div class="card stats-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center">
@@ -85,7 +100,7 @@
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-6 col-lg-3">
+    <div class="col-12 col-md-6 col-lg">
         <div class="card stats-card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center">
