@@ -99,8 +99,11 @@ def delete(id):
         flash('Only administrators can delete products.', 'danger')
         return redirect(url_for('products.index'))
     product = Product.query.get_or_404(id)
-    if product.purchases.count() > 0 or product.sales.count() > 0:
-        flash('Cannot delete product with existing transactions. Set to inactive instead.', 'danger')
+    has_purchases = product.purchases.count() > 0
+    has_sales = product.sales.count() > 0
+    has_stock_movements = product.stock_movements.count() > 0
+    if has_purchases or has_sales or has_stock_movements:
+        flash('Cannot delete product with existing transactions (purchases, sales, or stock movements). Set to inactive instead.', 'danger')
         return redirect(url_for('products.index'))
     db.session.delete(product)
     db.session.commit()
@@ -113,6 +116,40 @@ def price_history(id):
     product = Product.query.get_or_404(id)
     history = product.get_purchase_price_history()
     return render_template('products/price_history.html', product=product, history=history)
+
+@bp.route('/clean-orphaned', methods=['POST'])
+@login_required
+def clean_orphaned():
+    """Clean orphaned records in purchase_items, sale_items, stock_movements"""
+    if not current_user.is_admin():
+        flash('Only administrators can perform this action.', 'danger')
+        return redirect(url_for('products.index'))
+    
+    from app.models import PurchaseItem, SaleItem, StockMovement
+    
+    try:
+        # Delete orphaned stock_movements (no matching product)
+        deleted_sm = StockMovement.query.filter(
+            ~StockMovement.product_id.in_(db.session.query(Product.id))
+        ).delete(synchronize_session=False)
+        
+        # Delete orphaned purchase_items
+        deleted_pi = PurchaseItem.query.filter(
+            ~PurchaseItem.product_id.in_(db.session.query(Product.id))
+        ).delete(synchronize_session=False)
+        
+        # Delete orphaned sale_items
+        deleted_si = SaleItem.query.filter(
+            ~SaleItem.product_id.in_(db.session.query(Product.id))
+        ).delete(synchronize_session=False)
+        
+        db.session.commit()
+        flash(f'Orphaned records cleaned: {deleted_pi} purchase items, {deleted_si} sale items, {deleted_sm} stock movements.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error cleaning orphaned records: {str(e)}', 'danger')
+    
+    return redirect(url_for('products.index'))
 
 @bp.route('/<int:id>/set-reference-price', methods=['POST'])
 @login_required

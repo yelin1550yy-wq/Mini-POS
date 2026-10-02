@@ -45,13 +45,7 @@ class Product(db.Model):
     
     def get_current_stock(self):
         """Get current stock - only counts stock from Accepted purchases"""
-        # Get stock movements from Accepted purchases and Sales
-        total_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).filter(
-            StockMovement.product_id == self.id,
-            StockMovement.transaction_type.in_(['Purchase', 'Customer Return', 'Adjustment'])
-        ).scalar() or 0
-        
-        # Only count Purchase movements from Accepted purchases
+        # Stock IN from Accepted purchases
         accepted_purchase_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).join(
             Purchase, StockMovement.reference_no == Purchase.purchase_no
         ).filter(
@@ -60,15 +54,18 @@ class Product(db.Model):
             Purchase.status == 'Accepted'
         ).scalar() or 0
         
+        # Stock IN from other sources (Customer Return, Adjustment)
+        other_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).filter(
+            StockMovement.product_id == self.id,
+            StockMovement.transaction_type.in_(['Customer Return', 'Adjustment'])
+        ).scalar() or 0
+        
+        # Stock OUT (all transaction types)
         total_out = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_out), 0)).filter(
             StockMovement.product_id == self.id
         ).scalar() or 0
         
-        # Use accepted purchase stock instead of all purchase stock
-        # If there are no accepted purchases yet, fall back to regular calculation
-        if accepted_purchase_in > 0:
-            return accepted_purchase_in - total_out
-        return total_in - total_out
+        return accepted_purchase_in + other_in - total_out
     
     def get_weighted_average_cost(self):
         purchases = PurchaseItem.query.filter_by(product_id=self.id).all()
