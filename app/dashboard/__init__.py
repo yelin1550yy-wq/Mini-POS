@@ -52,10 +52,12 @@ def index():
     return_ratio = (total_returns_qty / (total_items_sold + total_returns_qty) * 100) if (total_items_sold + total_returns_qty) > 0 else 0
     
     # Sales Summary (all time)
-    all_completed_sales = Sale.query.filter(Sale.status == 'Completed').all()
-    all_total_sales = sum(sum(item.total_price for item in s.items) for s in all_completed_sales)
-    all_outstanding = sum(s.outstanding_amount for s in all_completed_sales)
-    all_paid = sum(s.total_amount - s.outstanding_amount for s in all_completed_sales)
+    # Include Completed and Closed sales (active), exclude Returned and Draft
+    all_active_sales = Sale.query.filter(Sale.status.in_(['Completed', 'Closed'])).all()
+    all_total_sales = sum(s.total_amount for s in all_active_sales)
+    # Outstanding = sum of outstanding_amount for active sales (already maintained by payment/return logic)
+    all_outstanding = sum(s.outstanding_amount for s in all_active_sales)
+    all_paid = sum(s.total_amount - s.outstanding_amount for s in all_active_sales)
     
     # Purchases in period
     purchases_query = Purchase.query.filter(Purchase.date >= start_date, Purchase.date <= end_date)
