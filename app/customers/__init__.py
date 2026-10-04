@@ -68,6 +68,7 @@ def edit(id):
         return redirect(url_for('customers.index'))
     customer = Customer.query.get_or_404(id)
     form = CustomerForm(obj=customer)
+    form.customer_id.data = str(customer.id)  # For validation uniqueness check
     if form.validate_on_submit():
         customer_code = form.customer_code.data.strip().upper() if form.customer_code.data else customer.customer_code
         customer.customer_code = customer_code

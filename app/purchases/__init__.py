@@ -221,6 +221,7 @@ def edit(id):
     
     form = PurchaseForm(obj=purchase)
     form.supplier_id.choices = [(s.id, s.name) for s in Supplier.query.filter_by(is_active=True).order_by(Supplier.name).all()]
+    form.purchase_id.data = str(purchase.id)  # For validation uniqueness check
     
     if form.validate_on_submit():
         # Update basic info (purchase_no is preserved/updated but validated for uniqueness)

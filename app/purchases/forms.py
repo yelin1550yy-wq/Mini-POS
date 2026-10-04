@@ -9,13 +9,20 @@ class PurchaseForm(FlaskForm):
     date = DateField('Date', validators=[DataRequired()], default=date.today)
     supplier_id = SelectField('Supplier', coerce=int, validators=[DataRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
+    purchase_id = HiddenField('Purchase ID')
     submit = SubmitField('Save')
     
     def validate_purchase_no(self, field):
         purchase = Purchase.query.filter_by(purchase_no=field.data.strip()).first()
         current_purchase_id = None
-        # WTForms stores obj in _obj
-        if hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
+        # Primary: use hidden field (works in POST)
+        if self.purchase_id.data:
+            try:
+                current_purchase_id = int(self.purchase_id.data)
+            except (ValueError, TypeError):
+                pass
+        # Fallback: _obj (works in GET)
+        elif hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
             current_purchase_id = self._obj.id
         if purchase and purchase.id != current_purchase_id:
             raise ValidationError('Purchase number already exists.')

@@ -198,6 +198,7 @@ def edit(id):
     form.customer_id.choices = [(0, 'Walk-in Customer')] + [(c.id, f"[{c.customer_code}] {c.name}") for c in Customer.query.filter_by(is_active=True).order_by(Customer.created_at.desc()).all()]
     if sale.customer_id is None:
         form.customer_id.data = 0
+    form.sale_id.data = str(sale.id)  # For validation uniqueness check
     
     if form.validate_on_submit():
         customer_id = form.customer_id.data if form.customer_id.data != 0 else None
