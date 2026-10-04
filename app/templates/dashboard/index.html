@@ -133,8 +133,8 @@
                 <hr class="my-2">
                 <div class="row text-center small">
                     <div class="col-md-6">
-                        <div class="fw-bold text-success">{{ "{:,.0f}".format(in_hand_stock_value) }} Ks</div>
-                        <div class="text-muted">In-Hand Stock Value</div>
+                        <div class="fw-bold text-info">{{ "{:,.0f}".format(purchase_item_value) }} Ks</div>
+                        <div class="text-muted">Purchase Item Value</div>
                     </div>
                     <div class="col-md-6">
                         <div class="fw-bold text-{{ 'success' if in_hand_cash >= 0 else 'danger' }}">{{ "{:,.0f}".format(in_hand_cash) }} Ks</div>

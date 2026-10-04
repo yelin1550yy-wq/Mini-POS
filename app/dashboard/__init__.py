@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
-from app.models import db, Sale, SaleItem, Purchase, Product, Expense, Customer, StockMovement, Capital, TierConfig
+from app.models import db, Sale, SaleItem, Purchase, PurchaseItem, Product, Expense, Customer, StockMovement, Capital, TierConfig
 from sqlalchemy import func, and_
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -84,8 +84,8 @@ def index():
     total_withdrawals = Capital.get_total_withdrawals()
     
     # Current Business Value calculation
-    # In-Hand Stock Value = Sum of (Current Stock * Average Cost) for all active inventory
-    in_hand_stock_value = total_stock_value
+    # Purchase Item Value = Total value of items acquired through supplier purchases
+    purchase_item_value = db.session.query(db.func.coalesce(db.func.sum(PurchaseItem.total_price), 0)).scalar() or 0
     
     # In-Hand Cash = (Total Capital Injections + Total Sales Revenue) - (Total Expenses + Total Capital Withdrawals)
     # Total Sales Revenue (all time, completed sales)
@@ -98,8 +98,8 @@ def index():
     
     in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals)
     
-    # Current Business Value = In-Hand Stock Value + In-Hand Cash
-    current_business_value = in_hand_stock_value + in_hand_cash
+    # Current Business Value = Purchase Item Value + In-Hand Cash
+    current_business_value = purchase_item_value + in_hand_cash
     
     # Top selling products (by quantity)
     top_sales = db.session.query(
@@ -138,7 +138,7 @@ def index():
                            total_injections=total_injections,
                            total_withdrawals=total_withdrawals,
                            current_business_value=current_business_value,
-                           in_hand_stock_value=in_hand_stock_value,
+                           purchase_item_value=purchase_item_value,
                            in_hand_cash=in_hand_cash)
 
 @bp.route('/api/stats')
