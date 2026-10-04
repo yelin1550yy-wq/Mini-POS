@@ -214,27 +214,64 @@ def view(id):
 def edit(id):
     purchase = Purchase.query.get_or_404(id)
     
-    # Only allow editing if no other transactions depend on this purchase's stock
-    # For simplicity, we'll allow editing but warn user
+    # Only allow editing if purchase is not Accepted (stock already added)
+    if purchase.status == 'Accepted':
+        flash('Cannot edit an Accepted purchase. Cancel it first, then create a new one.', 'warning')
+        return redirect(url_for('purchases.view', id=id))
     
     form = PurchaseForm(obj=purchase)
     form.supplier_id.choices = [(s.id, s.name) for s in Supplier.query.filter_by(is_active=True).order_by(Supplier.name).all()]
     
     if form.validate_on_submit():
-        # This is complex - would need to reverse stock movements and recreate
-        # For now, just update basic info
+        # Update basic info (purchase_no is preserved/updated but validated for uniqueness)
         purchase.purchase_no = form.purchase_no.data.strip()
         purchase.date = form.date.data
         purchase.supplier_id = form.supplier_id.data
         purchase.notes = form.notes.data.strip() if form.notes.data else None
         
+        # If Received, we need to handle stock movements
+        # For Ordered/Received -> we can freely edit items
+        # For Received: we don't have stock movements yet, so safe to edit
+        
         try:
+            # Delete existing items and recreate from form
+            PurchaseItem.query.filter_by(purchase_id=purchase.id).delete()
+            db.session.flush()
+            
+            # Process items from form
+            product_ids = request.form.getlist('product_id[]')
+            quantities = request.form.getlist('quantity[]')
+            unit_prices = request.form.getlist('unit_price[]')
+            reference_prices = request.form.getlist('reference_price[]')
+            
+            for pid, qty, price, ref_price in zip(product_ids, quantities, unit_prices, reference_prices):
+                if pid and qty and price:
+                    product = Product.query.get(int(pid))
+                    if not product:
+                        continue
+                    
+                    qty = int(qty)
+                    price = Decimal(str(price))
+                    ref_price = Decimal(str(ref_price)) if ref_price else Decimal('0')
+                    total = qty * price
+                    
+                    item = PurchaseItem(
+                        purchase_id=purchase.id,
+                        product_id=int(pid),
+                        quantity=qty,
+                        unit_price=price,
+                        reference_price=ref_price,
+                        total_price=total
+                    )
+                    db.session.add(item)
+            
             db.session.commit()
-            flash('Purchase updated. Note: Stock movements not recalculated.', 'warning')
+            flash('Purchase Order updated successfully.', 'success')
             return redirect(url_for('purchases.index'))
+            
         except Exception as e:
             db.session.rollback()
-            flash(f'Error: {str(e)}', 'danger')
+            flash(f'Error updating purchase: {str(e)}', 'danger')
     
     products = Product.query.filter_by(is_active=True).order_by(Product.product_code).all()
     products_data = [{

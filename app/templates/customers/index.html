@@ -15,7 +15,7 @@
         <form method="GET" class="row g-3">
             <div class="col-md-5">
                 <label class="form-label visually-hidden">Search</label>
-                <input type="text" name="search" class="form-control" placeholder="Search by name or phone..." value="{{ search }}">
+                <input type="text" name="search" class="form-control" placeholder="Search by name, phone, or customer code..." value="{{ search }}">
             </div>
             <div class="col-md-2">
                 <select name="status" class="form-select">
@@ -40,6 +40,7 @@
             <table class="table table-hover mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th>Customer Code</th>
                         <th>Name</th>
                         <th>Account Name</th>
                         <th>Phone</th>
@@ -56,6 +57,7 @@
                 <tbody>
                     {% for customer in customers.items %}
                     <tr>
+                        <td><strong>{{ customer.customer_code }}</strong></td>
                         <td><strong>{{ customer.name }}</strong></td>
                         <td>{{ customer.account_name or '-' }}</td>
                         <td>{{ customer.phone or '-' }}</td>
@@ -93,7 +95,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="11" class="text-center py-4 text-muted">No customers found.</td>
+                        <td colspan="12" class="text-center py-4 text-muted">No customers found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

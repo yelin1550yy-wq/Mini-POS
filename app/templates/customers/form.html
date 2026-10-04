@@ -14,6 +14,14 @@
                 <form method="POST" novalidate>
                     {{ form.hidden_tag() }}
                     <div class="mb-3">
+                        {{ form.customer_code.label(class="form-label") }}
+                        {{ form.customer_code(class="form-control", placeholder="e.g., CUST-0001 (leave blank to auto-generate)") }}
+                        {% for error in form.customer_code.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Leave blank to auto-generate (format: CUST-0001)</div>
+                    </div>
+                    <div class="mb-3">
                         {{ form.name.label(class="form-label") }}
                         {{ form.name(class="form-control", placeholder="e.g., Customer Name") }}
                         {% for error in form.name.errors %}

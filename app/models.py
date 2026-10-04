@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, date
 from decimal import Decimal
+from sqlalchemy import event
 
 db = SQLAlchemy()
 
@@ -44,13 +45,12 @@ class Product(db.Model):
     stock_movements = db.relationship('StockMovement', backref='product', lazy='dynamic')
     
     def get_current_stock(self):
-        """Current stock = Accepted-purchase IN + (Customer Return / Adjustment) IN
+        """Current stock = Accepted-purchase IN + (Customer Return / Adjustment / Sale Deleted / Purchase Deleted) IN
         - Sale OUT (only for sales that still exist) - other non-reversal OUT.
 
+        Reversals ('Sale Deleted', 'Purchase Deleted') add stock back via their quantity_in.
         Outs are joined to their parent row so movements orphaned by a deleted
-        sale/purchase drop out instead of leaving a stale negative balance. The
-        'Sale Deleted' / 'Purchase Deleted' reversal rows are never counted, which
-        keeps each deleted transaction's net contribution at zero.
+        sale/purchase drop out instead of leaving a stale negative balance.
         """
         # Stock IN from Accepted purchases (join drops deleted/non-accepted purchases)
         accepted_purchase_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).join(
@@ -61,10 +61,10 @@ class Product(db.Model):
             Purchase.status == 'Accepted'
         ).scalar() or 0
         
-        # Stock IN from other sources (Customer Return, Adjustment)
+        # Stock IN from other sources (Customer Return, Adjustment, Sale Deleted, Purchase Deleted)
         other_in = db.session.query(db.func.coalesce(db.func.sum(StockMovement.quantity_in), 0)).filter(
             StockMovement.product_id == self.id,
-            StockMovement.transaction_type.in_(['Customer Return', 'Adjustment'])
+            StockMovement.transaction_type.in_(['Customer Return', 'Adjustment', 'Sale Deleted', 'Purchase Deleted'])
         ).scalar() or 0
         
         # Stock OUT from sales that still exist (join drops outs orphaned by deleted sales)
@@ -142,6 +142,7 @@ class Customer(db.Model):
     __tablename__ = 'customers'
     
     id = db.Column(db.Integer, primary_key=True)
+    customer_code = db.Column(db.String(20), unique=True, nullable=False, index=True)
     name = db.Column(db.String(200), nullable=False)
     account_name = db.Column(db.String(200))
     phone = db.Column(db.String(50))
@@ -157,6 +158,20 @@ class Customer(db.Model):
     tier = db.Column(db.String(20), default='Silver')  # Silver, Gold, Platinum, Diamond, Loyal
     
     sales = db.relationship('Sale', backref='customer', lazy='dynamic')
+    
+    @staticmethod
+    def generate_customer_code():
+        """Generate next customer code in format CUST-XXXX"""
+        last_customer = Customer.query.order_by(Customer.id.desc()).first()
+        if last_customer and last_customer.customer_code:
+            try:
+                last_num = int(last_customer.customer_code.split('-')[-1])
+                next_num = last_num + 1
+            except (ValueError, IndexError):
+                next_num = 1
+        else:
+            next_num = 1
+        return f'CUST-{next_num:04d}'
     
     def get_total_buy_items(self):
         """Get total items purchased in completed/closed sales"""
@@ -198,6 +213,14 @@ class Customer(db.Model):
     def get_outstanding_sales(self):
         """Get all sales with outstanding amounts"""
         return self.sales.filter(Sale.outstanding_amount > 0).all()
+
+
+# Auto-generate customer_code on insert if not provided
+@db.event.listens_for(Customer, 'before_insert')
+def generate_customer_code_listener(mapper, connection, target):
+    if not target.customer_code:
+        target.customer_code = Customer.generate_customer_code()
+
 
 class Purchase(db.Model):
     __tablename__ = 'purchases'

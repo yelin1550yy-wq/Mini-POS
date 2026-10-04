@@ -32,7 +32,8 @@ def index():
         query = query.filter(Sale.date <= date_to)
     
     sales = query.order_by(Sale.date.desc(), Sale.id.desc()).paginate(page=page, per_page=20, error_out=False)
-    customers = Customer.query.filter_by(is_active=True).order_by(Customer.name).all()
+    # Sort customers by newest first (latest registered)
+    customers = Customer.query.filter_by(is_active=True).order_by(Customer.created_at.desc()).all()
     
     return render_template('sales/index.html', 
                            sales=sales, 
@@ -46,7 +47,8 @@ def index():
 @login_required
 def create():
     form = SaleForm()
-    form.customer_id.choices = [(0, 'Walk-in Customer')] + [(c.id, c.name) for c in Customer.query.filter_by(is_active=True).order_by(Customer.name).all()]
+    # Sort customers by newest first
+    form.customer_id.choices = [(0, 'Walk-in Customer')] + [(c.id, f"[{c.customer_code}] {c.name}") for c in Customer.query.filter_by(is_active=True).order_by(Customer.created_at.desc()).all()]
     
     # Generate next sale number
     last_sale = Sale.query.order_by(Sale.id.desc()).first()
@@ -185,14 +187,140 @@ def view(id):
 @login_required
 def edit(id):
     sale = Sale.query.get_or_404(id)
+    
+    # Only allow editing if sale is not Closed or Returned (final states)
+    if sale.status in ['Closed', 'Returned']:
+        flash(f'Cannot edit a {sale.status} sale.', 'warning')
+        return redirect(url_for('sales.view', id=id))
+    
     form = SaleForm(obj=sale)
-    form.customer_id.choices = [(0, 'Walk-in Customer')] + [(c.id, c.name) for c in Customer.query.filter_by(is_active=True).order_by(Customer.name).all()]
+    # Sort customers by newest first
+    form.customer_id.choices = [(0, 'Walk-in Customer')] + [(c.id, f"[{c.customer_code}] {c.name}") for c in Customer.query.filter_by(is_active=True).order_by(Customer.created_at.desc()).all()]
     if sale.customer_id is None:
         form.customer_id.data = 0
     
     if form.validate_on_submit():
-        flash('Editing sales is not fully implemented. Please delete and recreate.', 'warning')
-        return redirect(url_for('sales.index'))
+        customer_id = form.customer_id.data if form.customer_id.data != 0 else None
+        
+        # Check if customer is blacklisted
+        if customer_id:
+            customer = Customer.query.get(customer_id)
+            if customer and customer.is_blacklisted:
+                phone_info = f" (Phone: {customer.phone})" if customer.phone else ""
+                flash(f'Error: Customer {customer.name}{phone_info} is blacklisted and cannot make a purchase!', 'danger')
+                return redirect(url_for('sales.edit', id=id))
+        
+        # Get discount and channel from form
+        discount_percent = Decimal(request.form.get('discount_percent', '0'))
+        channel = request.form.get('channel', 'Direct Sale')
+        
+        try:
+            # Update sale header
+            sale.sale_no = form.sale_no.data.strip()
+            sale.date = form.date.data
+            sale.customer_id = customer_id
+            sale.channel = channel
+            sale.notes = form.notes.data.strip() if form.notes.data else None
+            sale.discount_percent = discount_percent
+            
+            # Delete existing items and stock movements
+            for item in sale.items:
+                # Reverse stock movement for this item
+                product = item.product
+                current_stock = product.get_current_stock()
+                new_balance = current_stock + item.quantity
+                
+                movement = StockMovement(
+                    date=datetime.now(),
+                    transaction_type='Sale Deleted',
+                    reference_no=sale.sale_no,
+                    product_id=product.id,
+                    quantity_in=item.quantity,
+                    quantity_out=0,
+                    balance=new_balance,
+                    unit_cost=item.unit_cost,
+                    notes=f'Reversal of sale {sale.sale_no} (edit)'
+                )
+                db.session.add(movement)
+            
+            SaleItem.query.filter_by(sale_id=sale.id).delete()
+            db.session.flush()
+            
+            # Process new items from form
+            product_ids = request.form.getlist('product_id[]')
+            quantities = request.form.getlist('quantity[]')
+            reference_prices = request.form.getlist('reference_price[]')
+            actual_prices = request.form.getlist('actual_price[]')
+            
+            subtotal = Decimal('0')
+            
+            for pid, qty, ref_price, act_price in zip(product_ids, quantities, reference_prices, actual_prices):
+                if pid and qty and act_price:
+                    product = Product.query.get(int(pid))
+                    if not product:
+                        continue
+                    
+                    qty = int(qty)
+                    ref_price = Decimal(str(ref_price))
+                    act_price = Decimal(str(act_price))
+                    total_price = qty * act_price
+                    
+                    # Get weighted average cost at this moment
+                    avg_cost = product.get_weighted_average_cost()
+                    total_cost = qty * avg_cost
+                    gross_profit = total_price - total_cost
+                    
+                    # Check stock availability (including what we're adding back from deleted items)
+                    current_stock = product.get_current_stock()
+                    if current_stock < qty:
+                        raise Exception(f'Insufficient stock for {product.product_code}. Available: {current_stock}, Requested: {qty}')
+                    
+                    item = SaleItem(
+                        sale_id=sale.id,
+                        product_id=int(pid),
+                        quantity=qty,
+                        reference_price=ref_price,
+                        actual_price=act_price,
+                        total_price=total_price,
+                        unit_cost=avg_cost,
+                        total_cost=total_cost,
+                        gross_profit=gross_profit
+                    )
+                    db.session.add(item)
+                    
+                    # Create new stock movement
+                    new_balance = current_stock - qty
+                    movement = StockMovement(
+                        date=sale.date,
+                        transaction_type='Sale',
+                        reference_no=sale.sale_no,
+                        product_id=product.id,
+                        quantity_in=0,
+                        quantity_out=qty,
+                        balance=new_balance,
+                        unit_cost=avg_cost
+                    )
+                    db.session.add(movement)
+                    
+                    subtotal += total_price
+            
+            # Calculate discount amount and update sale
+            if discount_percent > 0:
+                sale.discount_amount = (subtotal * discount_percent / Decimal('100')).quantize(Decimal('0.01'))
+            else:
+                sale.discount_amount = Decimal('0')
+            
+            # Recalculate outstanding amount
+            sale.outstanding_amount = sale.total_amount
+            sale.update_payment_status()
+            
+            db.session.commit()
+            flash('Sale updated successfully. Stock recalculated.', 'success')
+            return redirect(url_for('sales.index'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating sale: {str(e)}', 'danger')
     
     products = Product.query.filter_by(is_active=True).order_by(Product.product_code).all()
     products_data = [{
@@ -204,6 +332,19 @@ def edit(id):
         'avg_cost': float(p.get_weighted_average_cost())
     } for p in products]
     return render_template('sales/form.html', form=form, title='Edit Sale', products=products_data, sale=sale)
+
+@bp.route('/api/customer/<int:customer_id>/tier')
+@login_required
+def api_customer_tier(customer_id):
+    """Get customer tier and discount info"""
+    customer = Customer.query.get_or_404(customer_id)
+    return jsonify({
+        'customer_id': customer.id,
+        'customer_code': customer.customer_code,
+        'name': customer.name,
+        'tier': customer.tier,
+        'discount_percent': float(customer.get_discount_percent())
+    })
 
 @bp.route('/<int:id>/delete', methods=['POST'])
 @login_required

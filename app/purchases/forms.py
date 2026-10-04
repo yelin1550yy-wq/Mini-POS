@@ -13,7 +13,10 @@ class PurchaseForm(FlaskForm):
     
     def validate_purchase_no(self, field):
         purchase = Purchase.query.filter_by(purchase_no=field.data.strip()).first()
-        if purchase and (not hasattr(self, 'obj') or purchase.id != self.obj.id):
+        current_purchase_id = None
+        if hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
+            current_purchase_id = self.obj.id
+        if purchase and purchase.id != current_purchase_id:
             raise ValidationError('Purchase number already exists.')
 
 class PurchaseItemForm(FlaskForm):

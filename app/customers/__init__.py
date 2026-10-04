@@ -18,14 +18,16 @@ def index():
     if search:
         query = query.filter(or_(
             Customer.name.ilike(f'%{search}%'),
-            Customer.phone.ilike(f'%{search}%')
+            Customer.phone.ilike(f'%{search}%'),
+            Customer.customer_code.ilike(f'%{search}%')
         ))
     if status_filter == 'active':
         query = query.filter(Customer.is_active == True)
     elif status_filter == 'inactive':
         query = query.filter(Customer.is_active == False)
     
-    customers = query.order_by(Customer.name).paginate(page=page, per_page=20, error_out=False)
+    # Sort by newest first (latest registered customers first)
+    customers = query.order_by(Customer.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
     
     return render_template('customers/index.html', 
                            customers=customers, 
@@ -40,7 +42,9 @@ def create():
         return redirect(url_for('customers.index'))
     form = CustomerForm()
     if form.validate_on_submit():
+        customer_code = form.customer_code.data.strip().upper() if form.customer_code.data else Customer.generate_customer_code()
         customer = Customer(
+            customer_code=customer_code,
             name=form.name.data.strip(),
             account_name=form.account_name.data.strip() if form.account_name.data else None,
             phone=form.phone.data.strip() if form.phone.data else None,
@@ -65,6 +69,8 @@ def edit(id):
     customer = Customer.query.get_or_404(id)
     form = CustomerForm(obj=customer)
     if form.validate_on_submit():
+        customer_code = form.customer_code.data.strip().upper() if form.customer_code.data else customer.customer_code
+        customer.customer_code = customer_code
         customer.name = form.name.data.strip()
         customer.account_name = form.account_name.data.strip() if form.account_name.data else None
         customer.phone = form.phone.data.strip() if form.phone.data else None
@@ -92,3 +98,24 @@ def delete(id):
     db.session.commit()
     flash('Customer deleted.', 'success')
     return redirect(url_for('customers.index'))
+
+@bp.route('/api/search')
+@login_required
+def api_search():
+    """API endpoint for searching customers by name or code"""
+    q = request.args.get('q', '')
+    customers = Customer.query.filter(
+        Customer.is_active == True,
+        db.or_(
+            Customer.name.ilike(f'%{q}%'),
+            Customer.customer_code.ilike(f'%{q}%')
+        )
+    ).order_by(Customer.created_at.desc()).limit(20).all()
+    return jsonify([{
+        'id': c.id,
+        'customer_code': c.customer_code,
+        'name': c.name,
+        'phone': c.phone,
+        'tier': c.tier,
+        'discount_percent': float(c.get_discount_percent())
+    } for c in customers])
