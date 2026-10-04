@@ -104,8 +104,8 @@ def index():
     
     in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals)
     
-    # Current Business Value = Total In-Hand Stock Value + In-Hand Cash
-    current_business_value = total_stock_value + in_hand_cash
+    # Current Business Value = In-Hand Stock Value + Outstanding Amount + In-Hand Cash
+    current_business_value = total_stock_value + all_outstanding + in_hand_cash
     
     # Keep purchase_item_value for reference display (historical total)
     purchase_item_value = db.session.query(db.func.coalesce(db.func.sum(PurchaseItem.total_price), 0)).scalar() or 0
