@@ -90,9 +90,7 @@ def index():
     total_withdrawals = Capital.get_total_withdrawals()
     
     # Current Business Value calculation
-    # Purchase Item Value = Total value of items acquired through supplier purchases
-    purchase_item_value = db.session.query(db.func.coalesce(db.func.sum(PurchaseItem.total_price), 0)).scalar() or 0
-    
+    # Total In-Hand Purchase Stock Value = Current inventory valuation (stock * weighted avg cost)
     # In-Hand Cash = (Total Capital Injections + Total Sales Revenue) - (Total Expenses + Total Capital Withdrawals)
     # Total Sales Revenue (all time, completed sales)
     total_sales_revenue = db.session.query(db.func.coalesce(db.func.sum(SaleItem.total_price), 0)).join(Sale).filter(
@@ -104,8 +102,11 @@ def index():
     
     in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals)
     
-    # Current Business Value = Purchase Item Value + In-Hand Cash
-    current_business_value = purchase_item_value + in_hand_cash
+    # Current Business Value = Total In-Hand Stock Value + In-Hand Cash
+    current_business_value = total_stock_value + in_hand_cash
+    
+    # Keep purchase_item_value for reference display (historical total)
+    purchase_item_value = db.session.query(db.func.coalesce(db.func.sum(PurchaseItem.total_price), 0)).scalar() or 0
     
     # Top selling products (by quantity)
     top_sales = db.session.query(
