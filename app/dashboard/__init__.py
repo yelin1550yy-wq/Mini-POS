@@ -93,7 +93,7 @@ def index():
     
     # Current Business Value calculation
     # Total In-Hand Purchase Stock Value = Current inventory valuation (stock * weighted avg cost)
-    # In-Hand Cash = (Total Capital Injections + Total Sales Revenue) - (Total Expenses + Total Capital Withdrawals)
+    # In-Hand Cash = (Total Capital Injections + Total Sales Revenue) - (Total Expenses + Total Capital Withdrawals + Purchases Paid via In-Hand Cash)
     # Total Sales Revenue (all time, completed sales)
     total_sales_revenue = db.session.query(db.func.coalesce(db.func.sum(SaleItem.total_price), 0)).join(Sale).filter(
         Sale.status == 'Completed'
@@ -102,7 +102,15 @@ def index():
     # Total Expenses (all time)
     total_expenses_all = db.session.query(db.func.coalesce(db.func.sum(Expense.amount), 0)).scalar() or 0
     
-    in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals)
+    # Purchases paid via In-Hand Cash (all time, non-cancelled)
+    purchases_from_cash = db.session.query(
+        db.func.coalesce(db.func.sum(PurchaseItem.total_price), 0)
+    ).join(Purchase).filter(
+        Purchase.payment_source == 'in_hand_cash',
+        Purchase.status != 'Cancelled'
+    ).scalar() or 0
+    
+    in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals + purchases_from_cash)
     
     # Current Business Value = In-Hand Stock Value + Outstanding Amount + In-Hand Cash
     current_business_value = total_stock_value + all_outstanding + in_hand_cash

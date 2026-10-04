@@ -61,6 +61,7 @@ def create():
             purchase_no=form.purchase_no.data.strip(),
             date=form.date.data,
             supplier_id=form.supplier_id.data,
+            payment_source=form.payment_source.data,
             status='Ordered',  # Initial status: Ordered
             notes=form.notes.data.strip() if form.notes.data else None,
             created_by=current_user.id
@@ -228,6 +229,7 @@ def edit(id):
         purchase.purchase_no = form.purchase_no.data.strip()
         purchase.date = form.date.data
         purchase.supplier_id = form.supplier_id.data
+        purchase.payment_source = form.payment_source.data
         purchase.notes = form.notes.data.strip() if form.notes.data else None
         
         # If Received, we need to handle stock movements

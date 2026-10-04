@@ -8,6 +8,15 @@ class PurchaseForm(FlaskForm):
     purchase_no = StringField('Purchase No.', validators=[DataRequired(), Length(1, 30)])
     date = DateField('Date', validators=[DataRequired()], default=date.today)
     supplier_id = SelectField('Supplier', coerce=int, validators=[DataRequired()])
+    payment_source = SelectField(
+        'Payment Source',
+        choices=[
+            ('in_hand_cash', 'In-Hand Cash'),
+            ('external', 'External / Credit / Bank')
+        ],
+        default='in_hand_cash',
+        validators=[DataRequired()]
+    )
     notes = TextAreaField('Notes', validators=[Optional()])
     purchase_id = HiddenField('Purchase ID')
     submit = SubmitField('Save')

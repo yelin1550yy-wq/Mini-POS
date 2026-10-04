@@ -235,11 +235,18 @@ class Purchase(db.Model):
     accepted_date = db.Column(db.DateTime)
     received_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     accepted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    # Payment source: in_hand_cash, external
+    payment_source = db.Column(db.String(50), default='in_hand_cash', nullable=False)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     
     items = db.relationship('PurchaseItem', backref='purchase', lazy='dynamic', cascade='all, delete-orphan')
+    
+    @property
+    def total_amount(self):
+        """Calculate total purchase amount from items"""
+        return sum(item.total_price for item in self.items)
     
     @property
     def is_received(self):
