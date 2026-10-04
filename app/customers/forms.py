@@ -27,7 +27,8 @@ class CustomerForm(FlaskForm):
             code = field.data.strip().upper()
             customer = Customer.query.filter_by(customer_code=code).first()
             current_customer_id = None
-            if hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
-                current_customer_id = self.obj.id
+            # WTForms stores obj in _obj
+            if hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
+                current_customer_id = self._obj.id
             if customer and customer.id != current_customer_id:
                 raise ValidationError('Customer code already exists.')

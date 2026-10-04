@@ -21,8 +21,8 @@ class ProductForm(FlaskForm):
                 current_product_id = int(self.product_id.data)
             except (ValueError, TypeError):
                 pass
-        elif hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
-            current_product_id = self.obj.id
+        elif hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
+            current_product_id = self._obj.id
         
         if product and product.id != current_product_id:
             raise ValidationError('Product code already exists.')

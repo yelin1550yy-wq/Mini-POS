@@ -14,8 +14,9 @@ class PurchaseForm(FlaskForm):
     def validate_purchase_no(self, field):
         purchase = Purchase.query.filter_by(purchase_no=field.data.strip()).first()
         current_purchase_id = None
-        if hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
-            current_purchase_id = self.obj.id
+        # WTForms stores obj in _obj
+        if hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
+            current_purchase_id = self._obj.id
         if purchase and purchase.id != current_purchase_id:
             raise ValidationError('Purchase number already exists.')
 

@@ -14,7 +14,8 @@ class SaleForm(FlaskForm):
     def validate_sale_no(self, field):
         sale = Sale.query.filter_by(sale_no=field.data.strip()).first()
         current_sale_id = None
-        if hasattr(self, 'obj') and self.obj and hasattr(self.obj, 'id'):
-            current_sale_id = self.obj.id
+        # WTForms stores obj in _obj
+        if hasattr(self, '_obj') and self._obj and hasattr(self._obj, 'id'):
+            current_sale_id = self._obj.id
         if sale and sale.id != current_sale_id:
             raise ValidationError('Sale number already exists.')
