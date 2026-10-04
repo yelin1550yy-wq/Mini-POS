@@ -210,8 +210,15 @@ def capital_add():
             if capital_type not in ['injection', 'withdrawal']:
                 capital_type = 'injection'
             
+            # Parse date string to date object
+            date_str = request.form.get('date')
+            if date_str:
+                date_val = datetime.strptime(date_str, '%Y-%m-%d').date()
+            else:
+                date_val = date.today()
+            
             capital = Capital(
-                date=request.form.get('date') or date.today(),
+                date=date_val,
                 amount=amount,
                 description=request.form.get('description', '').strip() or None,
                 type=capital_type,
