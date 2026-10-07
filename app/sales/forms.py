@@ -1,13 +1,13 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, DateField, SelectField, TextAreaField, SubmitField, HiddenField
-from wtforms.validators import DataRequired, Optional, Length, ValidationError
+from wtforms.validators import DataRequired, InputRequired, Optional, Length, ValidationError
 from app.models import Sale
 from datetime import date
 
 class SaleForm(FlaskForm):
     sale_no = StringField('Sale No.', validators=[DataRequired(), Length(1, 30)])
     date = DateField('Date', validators=[DataRequired()], default=date.today)
-    customer_id = SelectField('Customer', coerce=int, validators=[DataRequired()])
+    customer_id = SelectField('Customer', coerce=int, validators=[InputRequired()])
     notes = TextAreaField('Notes', validators=[Optional()])
     sale_id = HiddenField('Sale ID')
     submit = SubmitField('Save')

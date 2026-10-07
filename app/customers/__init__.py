@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from app.models import db, Customer
 from app.customers.forms import CustomerForm
@@ -107,13 +107,14 @@ def api_search():
     q = request.args.get('q', '')
     customers = Customer.query.filter(
         Customer.is_active == True,
-        db.or_(
+        or_(
             Customer.name.ilike(f'%{q}%'),
             Customer.customer_code.ilike(f'%{q}%')
         )
     ).order_by(Customer.created_at.desc()).limit(20).all()
     return jsonify([{
         'id': c.id,
+        'code': c.customer_code,
         'customer_code': c.customer_code,
         'name': c.name,
         'phone': c.phone,

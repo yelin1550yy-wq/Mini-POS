@@ -42,15 +42,22 @@
                 </div>
                 <div class="col-md-5">
                     {{ form.customer_id.label(class="form-label") }}
-                    <div class="input-group">
-                        <input type="text" id="customerSearch" class="form-control" placeholder="Search by name or code..." autocomplete="off">
-                        <span class="input-group-text" id="clearCustomerSearch" style="display:none; cursor:pointer;"><i class="bi bi-x"></i></span>
+                    <div id="customerSearchWrap" class="position-relative">
+                        <div class="input-group">
+                            <input type="text" id="customerSearch" class="form-control" placeholder="Search by name or code..." autocomplete="off">
+                            <span class="input-group-text" id="clearCustomerSearch" style="display:none; cursor:pointer;" title="Clear customer"><i class="bi bi-x"></i></span>
+                        </div>
+                        {{ form.customer_id(class="form-select d-none", id="customerSelect") }}
+                        <label class="form-label small mt-2 mb-1" for="customerNameDisplay">Customer Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-person-badge"></i></span>
+                            <input type="text" id="customerNameDisplay" class="form-control bg-light" readonly placeholder="Walk-in Customer">
+                        </div>
+                        {% for error in form.customer_id.errors %}
+                            <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                        <div class="form-text">Type to search by customer name or code (e.g., CUST-0001)</div>
                     </div>
-                    {{ form.customer_id(class="form-select d-none", id="customerSelect") }}
-                    {% for error in form.customer_id.errors %}
-                        <div class="text-danger small">{{ error }}</div>
-                    {% endfor %}
-                    <div class="form-text">Type to search by customer name or code (e.g., CUST-0001)</div>
                 </div>
             </div>
             
@@ -401,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tr.innerHTML = `
             <td>
                 <input type="hidden" name="product_id[]" class="product-id-input">
-                <button type="button" class="btn btn-outline-secondary w-100 text-start product-select-btn" disabled>
+                <button type="button" class="btn btn-outline-secondary w-100 text-start product-select-btn">
                     <span class="product-code-text">Select product...</span>
                 </button>
             </td>
@@ -492,7 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Fetch price history for a product (for reference, not auto-show modal)
     function fetchPriceHistory(productId, row) {
-        fetch(`/api/products/${productId}/price-history`)
+        fetch(`/sales/api/products/${productId}/price-history`)
             .then(response => response.json())
             .then(data => {
                 // Store history in row for later use if user clicks a "price history" button
@@ -547,14 +554,17 @@ document.addEventListener('DOMContentLoaded', function() {
         customerSelect.addEventListener('change', function() {
             const customerId = this.value;
             if (customerId && customerId !== '0') {
-                fetch(`/api/customer/${customerId}/tier`)
+                fetch(`/sales/api/customer/${customerId}/tier`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.customer_id) {
                             tierInfoEl.style.display = 'flex';
                             tierDisplayEl.value = data.tier;
-                            tierDiscountEl.value = data.discount_percent.toFixed(2);
-                            appliedDiscountEl.value = data.discount_percent.toFixed(2);
+                            tierDiscountEl.value = Number(data.discount_percent || 0).toFixed(2);
+                            appliedDiscountEl.value = Number(data.discount_percent || 0).toFixed(2);
+                            if (data.name && customerNameDisplay && !customerNameDisplay.value) {
+                                customerNameDisplay.value = data.name;
+                            }
                             updateTotals();
                         }
                     })
@@ -564,114 +574,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
             } else {
                 tierInfoEl.style.display = 'none';
+                if (customerNameDisplay) customerNameDisplay.value = '';
                 appliedDiscountEl.value = '0';
                 updateTotals();
             }
         });
     }
     
-    })
-            .catch(error => {
-                console.error('Error fetching customer tier:', error);
-                tierInfoEl.style.display = 'none';
-            });
-    } else {
-        tierInfoEl.style.display = 'none';
-        appliedDiscountEl.value = '0';
-        updateTotals();
-    }
-});
-
-// Customer search functionality
-const customerSearch = document.getElementById('customerSearch');
-const customerSelect = document.getElementById('customerSelect');
-const clearCustomerSearch = document.getElementById('clearCustomerSearch');
-let customerSearchTimeout = null;
-
-if (customerSearch && customerSelect) {
-    // Create dropdown for search results
-    const searchResults = document.createElement('div');
-    searchResults.className = 'dropdown-menu w-100 mt-1';
-    searchResults.style.maxHeight = '300px';
-    searchResults.style.overflowY = 'auto';
-    searchResults.style.display = 'none';
-    searchResults.style.zIndex = '1000';
-    customerSearch.parentNode.style.position = 'relative';
-    customerSearch.parentNode.appendChild(searchResults);
-
-    customerSearch.addEventListener('input', function() {
-        const query = this.value.trim();
-        if (clearCustomerSearch) {
-            clearCustomerSearch.style.display = query ? 'block' : 'none';
-        }
-        
-        clearTimeout(customerSearchTimeout);
-        customerSearchTimeout = setTimeout(() => {
-            if (query.length >= 1) {
-                fetch(`/customers/api/search?q=${encodeURIComponent(query)}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        searchResults.innerHTML = '';
-                        if (data.length > 0) {
-                            data.forEach(c => {
-                                const item = document.createElement('a');
-                                item.className = 'dropdown-item';
-                                item.href = '#';
-                                item.dataset.id = c.id;
-                                item.innerHTML = `<strong>[${c.customer_code}]</strong> ${c.name} ${c.phone ? `<br><small class="text-muted">${c.phone}</small>` : ''}`;
-                                item.addEventListener('click', function(e) {
-                                    e.preventDefault();
-                                    customerSelect.value = c.id;
-                                    customerSearch.value = `[${c.customer_code}] ${c.name}`;
-                                    searchResults.style.display = 'none';
-                                    // Trigger change event to load tier info
-                                    customerSelect.dispatchEvent(new Event('change'));
-                                });
-                                searchResults.appendChild(item);
-                            });
-                            searchResults.style.display = 'block';
-                        } else {
-                            searchResults.innerHTML = '<span class="dropdown-item text-muted">No customers found</span>';
-                            searchResults.style.display = 'block';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error searching customers:', error);
-                        searchResults.style.display = 'none';
-                    });
-            } else {
-                searchResults.style.display = 'none';
-            }
-        }, 200);
-    });
-
-    // Clear search
-    if (clearCustomerSearch) {
-        clearCustomerSearch.addEventListener('click', function() {
-            customerSearch.value = '';
-            customerSelect.value = '';
-            clearCustomerSearch.style.display = 'none';
-            searchResults.style.display = 'none';
-            customerSelect.dispatchEvent(new Event('change'));
-        });
-    }
-
-    // Hide dropdown when clicking outside
-    document.addEventListener('click', function(e) {
-        if (!customerSearch.contains(e.target) && !searchResults.contains(e.target)) {
-            searchResults.style.display = 'none';
-        }
-    });
-
-    // Handle keyboard navigation
-    customerSearch.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            searchResults.style.display = 'none';
-        }
-    });
-}
-
-// Applied discount change handler
+    // Applied discount change handler
     if (appliedDiscountEl) {
         appliedDiscountEl.addEventListener('input', function() {
             updateTotals();
@@ -686,8 +596,8 @@ if (customerSearch && customerSelect) {
                 currentRow = row;
                 initModals();
                 if (productModal) {
-                    productModal.show();
                     renderProductTable('');
+                    productModal.show();
                 }
             });
         }
@@ -710,5 +620,165 @@ if (customerSearch && customerSelect) {
     
     updateTotals();
 });
+
+// Customer search functionality
+const customerSearch = document.getElementById('customerSearch');
+const customerSelect = document.getElementById('customerSelect');
+const customerNameDisplay = document.getElementById('customerNameDisplay');
+const clearCustomerSearch = document.getElementById('clearCustomerSearch');
+const customerSearchWrap = document.getElementById('customerSearchWrap');
+let customerSearchTimeout = null;
+let searchResults = null;
+let selectedCustomerLabel = '';
+
+function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function setCustomerName(name) {
+    if (customerNameDisplay) {
+        customerNameDisplay.value = name || '';
+    }
+}
+
+function resetCustomer() {
+    if (customerSelect) {
+        customerSelect.value = '0';
+        if (customerSelect.value !== '0') customerSelect.selectedIndex = 0;
+    }
+    selectedCustomerLabel = '';
+    if (customerSearch) customerSearch.value = '';
+    setCustomerName('');
+    if (clearCustomerSearch) clearCustomerSearch.style.display = 'none';
+    if (customerSelect) customerSelect.dispatchEvent(new Event('change'));
+}
+
+function selectCustomer(customer) {
+    const code = customer.code || customer.customer_code || '';
+    const name = customer.name || '';
+    const label = '[' + code + '] ' + name;
+    if (customerSelect) customerSelect.value = customer.id;
+    selectedCustomerLabel = label;
+    if (customerSearch) customerSearch.value = label;
+    setCustomerName(name);
+    if (clearCustomerSearch) clearCustomerSearch.style.display = 'block';
+    if (searchResults) searchResults.style.display = 'none';
+    if (customerSelect) customerSelect.dispatchEvent(new Event('change'));
+}
+
+function initCustomerSelection() {
+    if (!customerSelect) return;
+    const id = customerSelect.value;
+    const option = customerSelect.selectedOptions && customerSelect.selectedOptions[0];
+    if (id && id !== '0' && option) {
+        const label = (option.textContent || '').trim();
+        const match = label.match(/^\[([^\]]+)\]\s*(.*)$/);
+        selectedCustomerLabel = label;
+        if (customerSearch) customerSearch.value = label;
+        setCustomerName(match ? match[2] : label);
+        if (clearCustomerSearch) clearCustomerSearch.style.display = 'block';
+    } else {
+        customerSelect.value = '0';
+        if (customerSelect.value !== '0') customerSelect.selectedIndex = 0;
+        setCustomerName('');
+    }
+}
+
+if (customerSearch && customerSelect && customerSearchWrap) {
+    // Create dropdown for search results
+    searchResults = document.createElement('div');
+    searchResults.className = 'dropdown-menu w-100 mt-1';
+    searchResults.style.maxHeight = '300px';
+    searchResults.style.overflowY = 'auto';
+    searchResults.style.display = 'none';
+    searchResults.style.zIndex = '1000';
+    customerSearchWrap.appendChild(searchResults);
+
+    customerSearch.addEventListener('input', function() {
+        const query = this.value.trim();
+        if (clearCustomerSearch) {
+            clearCustomerSearch.style.display = query ? 'block' : 'none';
+        }
+
+        // The displayed customer no longer matches what is typed: clear the selection
+        if (customerSelect.value && customerSelect.value !== '0' && this.value !== selectedCustomerLabel) {
+            customerSelect.value = '0';
+            if (customerSelect.value !== '0') customerSelect.selectedIndex = 0;
+            selectedCustomerLabel = '';
+            setCustomerName('');
+            customerSelect.dispatchEvent(new Event('change'));
+        }
+
+        clearTimeout(customerSearchTimeout);
+        customerSearchTimeout = setTimeout(() => {
+            if (query.length >= 1) {
+                fetch(`/customers/api/search?q=${encodeURIComponent(query)}`)
+                    .then(response => {
+                        if (!response.ok) throw new Error('Customer search failed: HTTP ' + response.status);
+                        return response.json();
+                    })
+                    .then(data => {
+                        searchResults.innerHTML = '';
+                        const results = Array.isArray(data) ? data : [];
+                        if (results.length > 0) {
+                            results.forEach(c => {
+                                const code = c.code || c.customer_code || '';
+                                const name = c.name || '';
+                                const item = document.createElement('a');
+                                item.className = 'dropdown-item';
+                                item.href = '#';
+                                item.dataset.id = c.id;
+                                item.innerHTML = `<strong>[${escapeHtml(code)}]</strong> ${escapeHtml(name)}${c.phone ? `<br><small class="text-muted">${escapeHtml(c.phone)}</small>` : ''}`;
+                                item.addEventListener('click', function(e) {
+                                    e.preventDefault();
+                                    selectCustomer({ id: c.id, code: code, name: name });
+                                });
+                                searchResults.appendChild(item);
+                            });
+                        } else {
+                            searchResults.innerHTML = '<span class="dropdown-item text-muted">No customers found</span>';
+                        }
+                        searchResults.style.display = 'block';
+                    })
+                    .catch(error => {
+                        console.error('Error searching customers:', error);
+                        searchResults.style.display = 'none';
+                    });
+            } else {
+                searchResults.style.display = 'none';
+            }
+        }, 200);
+    });
+
+    // Clear search
+    if (clearCustomerSearch) {
+        clearCustomerSearch.addEventListener('click', function() {
+            resetCustomer();
+            searchResults.style.display = 'none';
+        });
+    }
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!customerSearch.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.style.display = 'none';
+        }
+    });
+
+    // Handle keyboard navigation
+    customerSearch.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            searchResults.style.display = 'none';
+        }
+    });
+
+    initCustomerSelection();
+}
+
 </script>
 {% endblock %}
