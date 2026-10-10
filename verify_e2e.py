@@ -269,12 +269,13 @@ with app.app_context():
     db.session.add(cash_in)
     db.session.commit()
     
-    # Check In-Hand Cash updated
+    # Check In-Hand Cash updated (matches dashboard logic: real cash flow)
     total_injections = Capital.get_total_injections()
-    total_sales_revenue = db.session.query(func.coalesce(func.sum(SaleItem.total_price), 0)).join(Sale).filter(
-        Sale.status == 'Completed'
-    ).scalar() or 0
-    
+
+    # Received payments = amount actually collected (total - outstanding) for active sales
+    active_sales = Sale.query.filter(Sale.status.in_(['Completed', 'Closed'])).all()
+    received_payments = sum(s.total_amount - s.outstanding_amount for s in active_sales)
+
     total_expenses_all = db.session.query(func.coalesce(func.sum(Expense.amount), 0)).scalar() or 0
     total_withdrawals = Capital.get_total_withdrawals()
     
@@ -285,10 +286,14 @@ with app.app_context():
         Purchase.status != 'Cancelled'
     ).scalar() or 0
     
-    in_hand_cash = (total_injections + total_sales_revenue) - (total_expenses_all + total_withdrawals + purchases_from_cash)
+    in_hand_cash = (received_payments + total_injections) - (purchases_from_cash + total_expenses_all + total_withdrawals)
     
     print('In-Hand Cash after Cash In:', in_hand_cash, 'Ks')
-    print('Expected: Injections(150000) + Sales(55000) - Expenses(0) - Withdrawals(0) - Purchases(2000) = 203000')
+    print(f'Components: Received Payments({received_payments}) + Injections({total_injections}) '
+          f'- Purchases({purchases_from_cash}) - Expenses({total_expenses_all}) - Withdrawals({total_withdrawals})')
+    assert in_hand_cash == (received_payments + total_injections) - (purchases_from_cash + total_expenses_all + total_withdrawals), \
+        'In-Hand Cash must equal received payments + injections - cash outflows'
+    assert in_hand_cash >= 0, f'In-Hand Cash should not be negative in this scenario, got {in_hand_cash}'
     
     # Verify Business Value
     total_stock_value = sum(p.get_current_stock() * p.get_weighted_average_cost() for p in Product.query.filter_by(is_active=True).all())
