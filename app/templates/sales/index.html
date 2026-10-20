@@ -65,7 +65,7 @@
                     {% set total_cost = sale.items|sum(attribute='total_cost') %}
                     {% set total_profit = sale.items|sum(attribute='gross_profit') %}
                     {% set is_paid = sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0 %}
-                    {% set is_partial = (not is_paid) and (sale.payment_status in ['Partial', 'Partially Paid'] or (sale.paid_amount > 0)) %}
+                    {% set is_partial = (not is_paid) and (sale.payment_status in ['Partial', 'Partially Paid'] or ((sale.paid_amount or 0) > 0)) %}
                     <tr>
                         <td><strong>{{ sale.sale_no }}</strong></td>
                         <td>{{ sale.date.strftime('%Y-%m-%d') }}</td>
@@ -117,15 +117,17 @@
                                 <span class="badge bg-success">Closed</span>
                                 {% endif %}
                                 {% if not is_paid and sale.status != 'Returned' %}
-                                <button type="button" class="btn btn-sm btn-info text-white btn-pay-action"
+                                <button type="button" class="btn btn-sm btn-success text-white btn-receive-money btn-pay-action"
                                         data-bs-toggle="modal" data-bs-target="#listPaymentModal"
+                                        data-sale-id="{{ sale.id }}"
                                         data-sale-no="{{ sale.sale_no }}"
                                         data-total="{{ '{:.0f}'.format(sale.total_amount or 0) }}"
-                                        data-paid="{{ '{:.0f}'.format(sale.paid_amount) }}"
+                                        data-paid="{{ '{:.0f}'.format(sale.paid_amount or 0) }}"
                                         data-outstanding="{{ '{:.0f}'.format(sale.outstanding_amount or 0) }}"
                                         data-action="{{ url_for('sales.receive_payment', id=sale.id) }}"
+                                        onclick="openPaymentModal(this)"
                                         title="Receive Money / Payment">
-                                    <i class="bi bi-cash-stack me-1"></i>Pay
+                                    <i class="bi bi-cash-stack me-1"></i>Receive Money
                                 </button>
                                 {% endif %}
                                 {% if current_user.is_admin() %}
@@ -187,7 +189,8 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="listPaymentForm" method="POST">
+            <form id="listPaymentForm" method="POST" action="{{ url_for('sales.receive_payment_direct') }}">
+                <input type="hidden" name="sale_id" id="modalSaleId" value="">
                 <input type="hidden" name="return_url" id="modalReturnUrl" value="{{ request.full_path if request.full_path and not request.full_path.endswith('?') else request.path }}">
                 <div class="modal-body p-4">
                     <div class="card bg-light border-0 mb-3">
@@ -263,8 +266,10 @@
 <script>
 let currentMaxOutstanding = 0;
 
-function populatePaymentModal(btn) {
-    if (!btn) return;
+function populatePaymentModal(triggerEl) {
+    if (!triggerEl) return;
+    const btn = triggerEl.closest ? triggerEl.closest('button') || triggerEl : triggerEl;
+    const saleId = btn.getAttribute('data-sale-id') || '';
     const saleNo = btn.getAttribute('data-sale-no') || '';
     const total = parseFloat(btn.getAttribute('data-total')) || 0;
     const paid = parseFloat(btn.getAttribute('data-paid')) || 0;
@@ -273,6 +278,7 @@ function populatePaymentModal(btn) {
 
     currentMaxOutstanding = outstanding;
 
+    const elSaleId = document.getElementById('modalSaleId');
     const elSaleNo = document.getElementById('modalSaleNo');
     const elTotal = document.getElementById('modalTotal');
     const elPaid = document.getElementById('modalPaid');
@@ -280,6 +286,7 @@ function populatePaymentModal(btn) {
     const elInput = document.getElementById('modalAmountInput');
     const elForm = document.getElementById('listPaymentForm');
 
+    if (elSaleId) elSaleId.value = saleId;
     if (elSaleNo) elSaleNo.textContent = saleNo;
     if (elTotal) elTotal.textContent = total.toLocaleString() + ' Ks';
     if (elPaid) elPaid.textContent = paid.toLocaleString() + ' Ks';
@@ -313,6 +320,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    document.querySelectorAll('.btn-receive-money, .btn-pay-action').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            populatePaymentModal(this);
+        });
+    });
 
     const btnPayFull = document.getElementById('btnPayFull');
     if (btnPayFull) {

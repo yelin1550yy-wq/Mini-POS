@@ -17,6 +17,17 @@ def create_app(config_class=Config):
     
     with app.app_context():
         db.create_all()
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            if 'sales' in inspector.get_table_names():
+                cols = [c['name'] for c in inspector.get_columns('sales')]
+                if 'paid_amount' not in cols:
+                    with db.engine.connect() as conn:
+                        conn.execute(text('ALTER TABLE sales ADD COLUMN paid_amount NUMERIC(15, 2) DEFAULT 0'))
+                        conn.commit()
+        except Exception:
+            pass
     
     from app.auth import bp as auth_bp
     app.register_blueprint(auth_bp)

@@ -8,9 +8,11 @@ from decimal import Decimal
 
 bp = Blueprint('sales', __name__)
 
-@bp.route('/')
+@bp.route('/', methods=['GET', 'POST'])
 @login_required
 def index():
+    if request.method == 'POST' and ('amount_received' in request.form or 'sale_id' in request.form):
+        return receive_payment()
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
     customer_filter = request.args.get('customer', '', type=int)
@@ -472,13 +474,24 @@ def close_sale(id):
     
     return redirect(url_for('sales.view', id=id))
 
-@bp.route('/<int:id>/receive-payment', methods=['POST'])
+@bp.route('/receive-payment', methods=['POST'], endpoint='receive_payment_direct')
+@bp.route('/<int:id>/receive-payment', methods=['POST'], endpoint='receive_payment')
 @login_required
-def receive_payment(id):
-    """Mark payment as received for a sale (handles partial and full payments)"""
-    sale = Sale.query.get_or_404(id)
+def receive_payment(id=None):
+    """Process incoming payments for a sale order (partial or full)"""
+    if id is None:
+        try:
+            id = int(request.form.get('sale_id', '0'))
+        except (ValueError, TypeError):
+            id = None
     
     return_url = request.form.get('return_url') or request.referrer or url_for('sales.index')
+    
+    if not id:
+        flash('Invalid sale order specified.', 'danger')
+        return redirect(return_url)
+    
+    sale = Sale.query.get_or_404(id)
     
     # Check if sale is already settled
     if sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0:
@@ -499,6 +512,7 @@ def receive_payment(id):
             flash('Invalid payment amount entered.', 'danger')
             return redirect(return_url)
     else:
+        # Full payment of remaining balance
         amount_received = Decimal(str(sale.outstanding_amount or 0))
     
     if amount_received <= Decimal('0'):
@@ -511,14 +525,20 @@ def receive_payment(id):
         current_outstanding = Decimal(str(sale.outstanding_amount or 0))
         # Deduct up to current balance due
         actual_paid = min(amount_received, current_outstanding)
+        
+        # Add to existing paid_amount and recalculate remaining balance
+        current_paid = Decimal(str(sale.paid_amount or 0))
+        sale.paid_amount = current_paid + actual_paid
         sale.outstanding_amount = max(Decimal('0'), current_outstanding - actual_paid)
+        
+        # Update payment status
         sale.update_payment_status()
         
         # Capture payment notes & method
         payment_notes = request.form.get('payment_notes', '').strip() or None
         payment_method = request.form.get('payment_method', 'Cash').strip() or 'Cash'
         
-        # Record payment transaction history
+        # Record payment transaction in history
         payment_record = SalePayment(
             sale_id=sale.id,
             amount=actual_paid,
@@ -536,7 +556,7 @@ def receive_payment(id):
         db.session.commit()
         
         status_label = 'Fully Paid' if sale.payment_status in ['Paid', 'Fully Paid'] else 'Partially Paid'
-        success_msg = f'Payment of {actual_paid:,.0f} Ks recorded for {sale.sale_no}. Status: {status_label}. Remaining Balance: {sale.outstanding_amount:,.0f} Ks'
+        success_msg = f'Payment of {actual_paid:,.0f} Ks received for {sale.sale_no}. Status: {status_label}. Remaining Balance: {sale.outstanding_amount:,.0f} Ks'
         
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({

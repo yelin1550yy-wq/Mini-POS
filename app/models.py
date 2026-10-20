@@ -290,6 +290,7 @@ class Sale(db.Model):
     payment_received_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     # Outstanding amount (unpaid portion)
     outstanding_amount = db.Column(db.Numeric(15, 2), default=0)
+    paid_amount = db.Column(db.Numeric(15, 2), default=0)
     # Sale closed date
     closed_date = db.Column(db.DateTime)
     closed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -309,14 +310,11 @@ class Sale(db.Model):
     
     @property
     def is_paid(self):
-        return self.payment_status in ['Paid', 'Fully Paid']
+        return self.payment_status in ['Paid', 'Fully Paid'] or (self.outstanding_amount or 0) <= 0
 
     @property
-    def paid_amount(self):
-        """Calculate total amount paid so far"""
-        total = self.total_amount or Decimal('0')
-        outstanding = self.outstanding_amount or Decimal('0')
-        return max(Decimal('0'), total - outstanding)
+    def is_partial(self):
+        return (not self.is_paid) and (self.payment_status in ['Partial', 'Partially Paid'] or (self.paid_amount or 0) > 0)
 
     @property
     def balance_due(self):
@@ -332,9 +330,14 @@ class Sale(db.Model):
         return self.outstanding_amount > 0
     
     def update_payment_status(self):
-        """Update payment status based on outstanding amount"""
-        curr_outstanding = Decimal(str(self.outstanding_amount or 0))
+        """Update payment status and keep paid_amount and outstanding_amount in sync"""
         total = Decimal(str(self.total_amount or 0))
+        curr_outstanding = Decimal(str(self.outstanding_amount or 0))
+        
+        # Calculate actual paid amount from total and remaining outstanding
+        computed_paid = max(Decimal('0'), total - curr_outstanding)
+        self.paid_amount = computed_paid
+        
         if curr_outstanding <= 0:
             self.payment_status = 'Paid'
         elif curr_outstanding < total:

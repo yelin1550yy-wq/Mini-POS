@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set is_paid = sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0 %}
-{% set is_partial = (not is_paid) and (sale.payment_status in ['Partial', 'Partially Paid'] or (sale.paid_amount > 0)) %}
+{% set is_partial = (not is_paid) and (sale.payment_status in ['Partial', 'Partially Paid'] or ((sale.paid_amount or 0) > 0)) %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-cart-check me-2"></i>{{ sale.sale_no }}</h2>
@@ -108,9 +108,9 @@
                 </form>
                 {% endif %}
                 {% if not is_paid and sale.status != 'Returned' %}
-                <button type="button" class="btn btn-sm btn-info text-white"
+                <button type="button" class="btn btn-sm btn-success text-white btn-receive-money"
                         data-bs-toggle="modal" data-bs-target="#paymentModal">
-                    <i class="bi bi-cash-stack me-1"></i>Receive Payment
+                    <i class="bi bi-cash-stack me-1"></i>Receive Money
                 </button>
                 {% endif %}
             </div>
@@ -198,7 +198,7 @@
                 <div class="text-muted small">Grand Total (Net)</div>
             </div>
             <div class="col-md-3">
-                <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(sale.paid_amount) }} Ks</div>
+                <div class="fw-bold fs-4 text-success">{{ "{:,.0f}".format(sale.paid_amount or 0) }} Ks</div>
                 <div class="text-muted small">Total Paid</div>
             </div>
             <div class="col-md-3">
