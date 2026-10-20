@@ -484,17 +484,144 @@ def close_sale(id):
 @login_required
 def receive_payment(id=None):
     """Process incoming payments for a sale order (partial or full)"""
+    is_ajax = (
+        request.is_json or 
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 
+        'application/json' in request.headers.get('Accept', '')
+    )
+    
+    # 1. Resolve sale ID from URL parameter or form fields (sale_id / id)
     if id is None:
         try:
-            id = int(request.form.get('sale_id', '0'))
+            id_val = request.form.get('sale_id') or request.form.get('id') or (request.get_json().get('sale_id') if request.is_json else None)
+            id = int(id_val) if id_val else None
         except (ValueError, TypeError):
             id = None
     
     return_url = request.form.get('return_url') or request.referrer or url_for('sales.index')
     
     if not id:
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Invalid sale order specified.'}), 400
         flash('Invalid sale order specified.', 'danger')
         return redirect(return_url)
+    
+    sale = Sale.query.get_or_404(id)
+    
+    # 2. Check if sale is already settled
+    if sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0:
+        msg = f'Sale {sale.sale_no} is already fully paid.'
+        if is_ajax:
+            return jsonify({'success': False, 'message': msg}), 400
+        flash(msg, 'info')
+        return redirect(return_url)
+    
+    # 3. Parse payment amount from amount_received or amount
+    if request.is_json:
+        amount_received_str = str(request.get_json().get('amount_received') or request.get_json().get('amount') or '').strip()
+    else:
+        amount_received_str = (request.form.get('amount_received') or request.form.get('amount') or '').strip()
+        
+    if amount_received_str:
+        try:
+            amount_received_str = amount_received_str.replace(',', '').replace(' ', '')
+            amount_received = Decimal(amount_received_str)
+        except Exception:
+            if is_ajax:
+                return jsonify({'success': False, 'message': 'Invalid payment amount entered.'}), 400
+            flash('Invalid payment amount entered.', 'danger')
+            return redirect(return_url)
+    else:
+        # Default to full payment of remaining balance
+        amount_received = Decimal(str(sale.outstanding_amount or 0))
+    
+    if amount_received <= Decimal('0'):
+        if is_ajax:
+            return jsonify({'success': False, 'message': 'Payment amount must be greater than zero.'}), 400
+        flash('Payment amount must be greater than zero.', 'danger')
+        return redirect(return_url)
+    
+    try:
+        current_outstanding = Decimal(str(sale.outstanding_amount or 0))
+        # Deduct up to current balance due
+        actual_paid = min(amount_received, current_outstanding)
+        
+        # Add to existing paid_amount and recalculate remaining balance
+        current_paid = Decimal(str(sale.paid_amount or 0))
+        sale.paid_amount = current_paid + actual_paid
+        sale.outstanding_amount = max(Decimal('0'), current_outstanding - actual_paid)
+        sale.balance_due = sale.outstanding_amount
+        
+        # Capture payment notes, source & method
+        if request.is_json:
+            req_data = request.get_json()
+            payment_notes = str(req_data.get('payment_notes') or '').strip() or None
+            payment_source = str(req_data.get('payment_source') or '').strip()
+            payment_method = str(req_data.get('payment_method') or '').strip()
+        else:
+            payment_notes = request.form.get('payment_notes', '').strip() or None
+            payment_source = request.form.get('payment_source', '').strip()
+            payment_method = request.form.get('payment_method', '').strip()
+            
+        if payment_notes and len(payment_notes) > 200:
+            payment_notes = payment_notes[:200]
+        
+        if not payment_method and not payment_source:
+            payment_method = 'Cash'
+            payment_source = 'in_hand_cash'
+        elif not payment_source:
+            payment_source = 'in_hand_cash' if payment_method == 'Cash' else 'external'
+        elif not payment_method:
+            payment_method = 'Cash' if payment_source == 'in_hand_cash' else 'Bank Transfer'
+            
+        sale.payment_source = payment_source
+        
+        # Update payment status
+        sale.update_payment_status()
+        
+        # Record payment transaction in history
+        payment_record = SalePayment(
+            sale_id=sale.id,
+            amount=actual_paid,
+            payment_date=datetime.utcnow(),
+            payment_method=payment_method,
+            notes=payment_notes,
+            created_by=current_user.id if current_user and current_user.is_authenticated else None
+        )
+        db.session.add(payment_record)
+        
+        if sale.payment_status in ['Paid', 'Fully Paid']:
+            sale.payment_received_date = datetime.utcnow()
+            sale.payment_received_by = current_user.id if current_user and current_user.is_authenticated else None
+        
+        db.session.commit()
+        
+        status_label = 'Fully Paid' if sale.payment_status in ['Paid', 'Fully Paid'] else 'Partially Paid'
+        success_msg = f'Payment of {actual_paid:,.0f} Ks received for {sale.sale_no}. Status: {status_label}. Remaining Balance: {sale.outstanding_amount:,.0f} Ks'
+        
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'message': success_msg,
+                'sale_id': sale.id,
+                'sale_no': sale.sale_no,
+                'paid_amount': float(sale.paid_amount),
+                'outstanding_amount': float(sale.outstanding_amount),
+                'balance_due': float(sale.balance_due),
+                'payment_source': sale.payment_source,
+                'payment_method': payment_method,
+                'payment_status': sale.payment_status
+            })
+        
+        flash(success_msg, 'success')
+    except Exception as e:
+        db.session.rollback()
+        err_msg = f'Error recording payment: {str(e)}'
+        if is_ajax:
+            return jsonify({'success': False, 'message': err_msg}), 500
+        flash(err_msg, 'danger')
+    
+    return redirect(return_url)
     
     sale = Sale.query.get_or_404(id)
     
