@@ -300,6 +300,7 @@ class Sale(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     
     items = db.relationship('SaleItem', backref='sale', lazy='dynamic', cascade='all, delete-orphan')
+    payments = db.relationship('SalePayment', backref='sale', lazy='dynamic', cascade='all, delete-orphan', order_by='SalePayment.id.desc()')
     
     @property
     def total_amount(self):
@@ -363,6 +364,18 @@ class SaleItem(db.Model):
             self.total_cost = Decimal(str(self.quantity)) * Decimal(str(self.unit_cost))
         if self.total_price is not None and self.total_cost is not None:
             self.gross_profit = self.total_price - self.total_cost
+
+class SalePayment(db.Model):
+    __tablename__ = 'sale_payments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey('sales.id'), nullable=False, index=True)
+    amount = db.Column(db.Numeric(15, 2), nullable=False)
+    payment_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    payment_method = db.Column(db.String(50), default='Cash')
+    notes = db.Column(db.String(200))
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_by_user = db.relationship('User', foreign_keys=[created_by])
 
 class StockMovement(db.Model):
     __tablename__ = 'stock_movements'

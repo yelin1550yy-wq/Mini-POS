@@ -117,13 +117,14 @@
                                 <span class="badge bg-success">Closed</span>
                                 {% endif %}
                                 {% if not is_paid and sale.status != 'Returned' %}
-                                <button type="button" class="btn btn-sm btn-info text-white" title="Receive Money / Payment"
-                                        onclick="openPaymentModal(this)"
+                                <button type="button" class="btn btn-sm btn-info text-white btn-pay-action"
+                                        data-bs-toggle="modal" data-bs-target="#listPaymentModal"
                                         data-sale-no="{{ sale.sale_no }}"
                                         data-total="{{ '{:.0f}'.format(sale.total_amount or 0) }}"
                                         data-paid="{{ '{:.0f}'.format(sale.paid_amount) }}"
                                         data-outstanding="{{ '{:.0f}'.format(sale.outstanding_amount or 0) }}"
-                                        data-action="{{ url_for('sales.receive_payment', id=sale.id) }}">
+                                        data-action="{{ url_for('sales.receive_payment', id=sale.id) }}"
+                                        title="Receive Money / Payment">
                                     <i class="bi bi-cash-stack me-1"></i>Pay
                                 </button>
                                 {% endif %}
@@ -214,14 +215,33 @@
                             <span class="input-group-text"><i class="bi bi-cash"></i></span>
                             <input type="number" name="amount_received" id="modalAmountInput"
                                    class="form-control text-end fw-bold text-success"
-                                   min="1" step="1" required placeholder="Enter amount received">
+                                   min="1" step="1" required placeholder="Enter amount">
                             <span class="input-group-text">Ks</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mt-2">
-                            <small class="text-muted">Enter deposit/partial or full amount.</small>
+                            <small class="text-muted">Enter deposit/partial amount, or pay full balance.</small>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="btnPayFull">
                                 <i class="bi bi-check2-all me-1"></i>Pay Full Balance
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-5">
+                            <label class="form-label small text-muted">Payment Method</label>
+                            <select name="payment_method" class="form-select form-select-sm">
+                                <option value="Cash" selected>Cash</option>
+                                <option value="KPay">KPay</option>
+                                <option value="WavePay">WavePay</option>
+                                <option value="CB Pay">CB Pay</option>
+                                <option value="AYA Pay">AYA Pay</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label small text-muted">Note / Reference (Optional)</label>
+                            <input type="text" name="payment_notes" class="form-control form-control-sm" placeholder="e.g. Deposit, final settlement">
                         </div>
                     </div>
                 </div>
@@ -241,42 +261,66 @@
 {% block extra_js %}
 {{ super() }}
 <script>
-let paymentModalInstance = null;
 let currentMaxOutstanding = 0;
 
-function openPaymentModal(btn) {
-    const saleNo = btn.getAttribute('data-sale-no');
+function populatePaymentModal(btn) {
+    if (!btn) return;
+    const saleNo = btn.getAttribute('data-sale-no') || '';
     const total = parseFloat(btn.getAttribute('data-total')) || 0;
     const paid = parseFloat(btn.getAttribute('data-paid')) || 0;
     const outstanding = parseFloat(btn.getAttribute('data-outstanding')) || 0;
-    const actionUrl = btn.getAttribute('data-action');
+    const actionUrl = btn.getAttribute('data-action') || '';
 
     currentMaxOutstanding = outstanding;
 
-    document.getElementById('modalSaleNo').textContent = saleNo;
-    document.getElementById('modalTotal').textContent = total.toLocaleString() + ' Ks';
-    document.getElementById('modalPaid').textContent = paid.toLocaleString() + ' Ks';
-    document.getElementById('modalOutstanding').textContent = outstanding.toLocaleString() + ' Ks';
+    const elSaleNo = document.getElementById('modalSaleNo');
+    const elTotal = document.getElementById('modalTotal');
+    const elPaid = document.getElementById('modalPaid');
+    const elOutstanding = document.getElementById('modalOutstanding');
+    const elInput = document.getElementById('modalAmountInput');
+    const elForm = document.getElementById('listPaymentForm');
 
-    const input = document.getElementById('modalAmountInput');
-    input.value = Math.round(outstanding);
-    input.max = Math.round(outstanding);
+    if (elSaleNo) elSaleNo.textContent = saleNo;
+    if (elTotal) elTotal.textContent = total.toLocaleString() + ' Ks';
+    if (elPaid) elPaid.textContent = paid.toLocaleString() + ' Ks';
+    if (elOutstanding) elOutstanding.textContent = outstanding.toLocaleString() + ' Ks';
 
-    document.getElementById('listPaymentForm').action = actionUrl;
-
-    const modalEl = document.getElementById('listPaymentModal');
-    if (!paymentModalInstance) {
-        paymentModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    if (elInput) {
+        elInput.value = Math.round(outstanding);
+        elInput.max = Math.round(outstanding);
     }
-    paymentModalInstance.show();
+    if (elForm && actionUrl) {
+        elForm.action = actionUrl;
+    }
+}
+
+// Global fallback if invoked directly via onclick="openPaymentModal(this)"
+function openPaymentModal(btn) {
+    populatePaymentModal(btn);
+    const modalEl = document.getElementById('listPaymentModal');
+    if (modalEl && window.bootstrap) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('listPaymentModal');
+    if (modalEl) {
+        modalEl.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            if (button) {
+                populatePaymentModal(button);
+            }
+        });
+    }
+
     const btnPayFull = document.getElementById('btnPayFull');
     if (btnPayFull) {
         btnPayFull.addEventListener('click', function() {
             const input = document.getElementById('modalAmountInput');
-            input.value = Math.round(currentMaxOutstanding);
+            if (input) {
+                input.value = Math.round(currentMaxOutstanding);
+            }
         });
     }
 });

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
-from app.models import db, Sale, SaleItem, Product, Customer, StockMovement
+from app.models import db, Sale, SaleItem, Product, Customer, StockMovement, SalePayment
 from app.sales.forms import SaleForm
 from sqlalchemy import or_, func
 from datetime import date, datetime
@@ -475,11 +475,87 @@ def close_sale(id):
 @bp.route('/<int:id>/receive-payment', methods=['POST'])
 @login_required
 def receive_payment(id):
-    """Mark payment as received for a sale"""
+    """Mark payment as received for a sale (handles partial and full payments)"""
     sale = Sale.query.get_or_404(id)
     
     return_url = request.form.get('return_url') or request.referrer or url_for('sales.index')
     
+    # Check if sale is already settled
     if sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': f'Sale {sale.sale_no} is already fully paid.'}), 400
         flash(f'Sale {sale.sale_no} is already fully paid.', 'info')
         return redirect(return_url)
+    
+    # Parse payment amount
+    amount_received_str = request.form.get('amount_received', '').strip()
+    if amount_received_str:
+        try:
+            amount_received_str = amount_received_str.replace(',', '').replace(' ', '')
+            amount_received = Decimal(amount_received_str)
+        except Exception:
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'message': 'Invalid payment amount entered.'}), 400
+            flash('Invalid payment amount entered.', 'danger')
+            return redirect(return_url)
+    else:
+        amount_received = Decimal(str(sale.outstanding_amount or 0))
+    
+    if amount_received <= Decimal('0'):
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'Payment amount must be greater than zero.'}), 400
+        flash('Payment amount must be greater than zero.', 'danger')
+        return redirect(return_url)
+    
+    try:
+        current_outstanding = Decimal(str(sale.outstanding_amount or 0))
+        # Deduct up to current balance due
+        actual_paid = min(amount_received, current_outstanding)
+        sale.outstanding_amount = max(Decimal('0'), current_outstanding - actual_paid)
+        sale.update_payment_status()
+        
+        # Capture payment notes & method
+        payment_notes = request.form.get('payment_notes', '').strip() or None
+        payment_method = request.form.get('payment_method', 'Cash').strip() or 'Cash'
+        
+        # Record payment transaction history
+        payment_record = SalePayment(
+            sale_id=sale.id,
+            amount=actual_paid,
+            payment_date=datetime.utcnow(),
+            payment_method=payment_method,
+            notes=payment_notes,
+            created_by=current_user.id if current_user and current_user.is_authenticated else None
+        )
+        db.session.add(payment_record)
+        
+        if sale.payment_status in ['Paid', 'Fully Paid']:
+            sale.payment_received_date = datetime.utcnow()
+            sale.payment_received_by = current_user.id if current_user and current_user.is_authenticated else None
+        
+        db.session.commit()
+        
+        status_label = 'Fully Paid' if sale.payment_status in ['Paid', 'Fully Paid'] else 'Partially Paid'
+        success_msg = f'Payment of {actual_paid:,.0f} Ks recorded for {sale.sale_no}. Status: {status_label}. Remaining Balance: {sale.outstanding_amount:,.0f} Ks'
+        
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'success': True,
+                'message': success_msg,
+                'sale_id': sale.id,
+                'sale_no': sale.sale_no,
+                'paid_amount': float(sale.paid_amount),
+                'outstanding_amount': float(sale.outstanding_amount),
+                'balance_due': float(sale.balance_due),
+                'payment_status': sale.payment_status
+            })
+        
+        flash(success_msg, 'success')
+    except Exception as e:
+        db.session.rollback()
+        err_msg = f'Error recording payment: {str(e)}'
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': err_msg}), 500
+        flash(err_msg, 'danger')
+    
+    return redirect(return_url)
