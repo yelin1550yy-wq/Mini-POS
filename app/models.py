@@ -306,7 +306,9 @@ class Sale(db.Model):
     @property
     def total_amount(self):
         """Calculate total sale amount (after discount)"""
-        return sum(item.total_price for item in self.items) - (self.discount_amount or 0)
+        subtotal = sum((item.total_price or Decimal('0')) for item in self.items)
+        disc = Decimal(str(self.discount_amount or 0))
+        return max(Decimal('0'), subtotal - disc)
     
     @property
     def is_paid(self):

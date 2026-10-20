@@ -156,8 +156,10 @@ def create():
             sale.discount_amount = min(discount_amount_direct, subtotal).quantize(Decimal('0.01'))
             sale.discount_percent = Decimal('0')  # No longer used
             
-            # Set outstanding amount (initially full amount, will be updated when payment received)
+            # Set outstanding amount and initial paid amount
+            sale.paid_amount = Decimal('0')
             sale.outstanding_amount = sale.total_amount
+            sale.update_payment_status()
             
             db.session.commit()
             flash('Sale saved successfully. Stock updated.', 'success')
@@ -310,8 +312,11 @@ def edit(id):
             # Discount is now a direct amount entered by user
             sale.discount_amount = min(discount_amount_direct, subtotal).quantize(Decimal('0.01'))
             
-            # Recalculate outstanding amount
-            sale.outstanding_amount = sale.total_amount
+            # Recalculate outstanding amount while preserving payments
+            prev_paid = Decimal(str(sale.paid_amount or 0))
+            new_total = sale.total_amount
+            sale.paid_amount = min(prev_paid, new_total)
+            sale.outstanding_amount = max(Decimal('0'), new_total - sale.paid_amount)
             sale.update_payment_status()
             
             db.session.commit()

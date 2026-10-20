@@ -125,7 +125,7 @@
                                         data-paid="{{ '{:.0f}'.format(sale.paid_amount or 0) }}"
                                         data-outstanding="{{ '{:.0f}'.format(sale.outstanding_amount or 0) }}"
                                         data-action="{{ url_for('sales.receive_payment', id=sale.id) }}"
-                                        onclick="openPaymentModal(this)"
+                                        onclick="populatePaymentModal(this)"
                                         title="Receive Money / Payment">
                                     <i class="bi bi-cash-stack me-1"></i>Receive Money
                                 </button>
@@ -274,7 +274,7 @@ function populatePaymentModal(triggerEl) {
     const total = parseFloat(btn.getAttribute('data-total')) || 0;
     const paid = parseFloat(btn.getAttribute('data-paid')) || 0;
     const outstanding = parseFloat(btn.getAttribute('data-outstanding')) || 0;
-    const actionUrl = btn.getAttribute('data-action') || '';
+    const actionUrl = btn.getAttribute('data-action') || ('/sales/' + saleId + '/receive-payment');
 
     currentMaxOutstanding = outstanding;
 
@@ -301,7 +301,7 @@ function populatePaymentModal(triggerEl) {
     }
 }
 
-// Global fallback if invoked directly via onclick="openPaymentModal(this)"
+// Global fallback if invoked directly via onclick="populatePaymentModal(this)"
 function openPaymentModal(btn) {
     populatePaymentModal(btn);
     const modalEl = document.getElementById('listPaymentModal');

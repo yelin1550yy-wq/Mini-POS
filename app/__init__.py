@@ -26,6 +26,9 @@ def create_app(config_class=Config):
                     with db.engine.connect() as conn:
                         conn.execute(text('ALTER TABLE sales ADD COLUMN paid_amount NUMERIC(15, 2) DEFAULT 0'))
                         conn.commit()
+                with db.engine.connect() as conn:
+                    conn.execute(text('UPDATE sales SET paid_amount = 0 WHERE paid_amount IS NULL'))
+                    conn.commit()
         except Exception:
             pass
     

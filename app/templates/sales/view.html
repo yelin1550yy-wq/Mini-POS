@@ -250,9 +250,9 @@
                 </tbody>
             </table>
         </div>
-        {% elif sale.paid_amount > 0 %}
+        {% elif (sale.paid_amount or 0) > 0 %}
         <div class="alert alert-light border small text-muted text-center mt-3 mb-0">
-            <i class="bi bi-info-circle me-1"></i>Total of {{ "{:,.0f}".format(sale.paid_amount) }} Ks recorded.
+            <i class="bi bi-info-circle me-1"></i>Total of {{ "{:,.0f}".format(sale.paid_amount or 0) }} Ks recorded.
             {% if sale.payment_received_date %}
             Fully settled on {{ sale.payment_received_date.strftime('%Y-%m-%d %H:%M') }}.
             {% endif %}
@@ -273,6 +273,7 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('sales.receive_payment', id=sale.id) }}">
+                <input type="hidden" name="sale_id" value="{{ sale.id }}">
                 <input type="hidden" name="return_url" value="{{ url_for('sales.view', id=sale.id) }}">
                 <div class="modal-body p-4">
                     <div class="card bg-light border-0 mb-3">
@@ -284,7 +285,7 @@
                                 </div>
                                 <div class="col-4 border-start border-end">
                                     <div class="text-muted small">Already Paid</div>
-                                    <div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(sale.paid_amount) }} Ks</div>
+                                    <div class="fw-bold fs-6 text-success">{{ "{:,.0f}".format(sale.paid_amount or 0) }} Ks</div>
                                 </div>
                                 <div class="col-4">
                                     <div class="text-muted small">Balance Due</div>
