@@ -308,7 +308,19 @@ class Sale(db.Model):
     
     @property
     def is_paid(self):
-        return self.payment_status == 'Paid'
+        return self.payment_status in ['Paid', 'Fully Paid']
+
+    @property
+    def paid_amount(self):
+        """Calculate total amount paid so far"""
+        total = self.total_amount or Decimal('0')
+        outstanding = self.outstanding_amount or Decimal('0')
+        return max(Decimal('0'), total - outstanding)
+
+    @property
+    def balance_due(self):
+        """Remaining balance due"""
+        return max(Decimal('0'), Decimal(str(self.outstanding_amount or 0)))
     
     @property
     def is_closed(self):
@@ -320,9 +332,11 @@ class Sale(db.Model):
     
     def update_payment_status(self):
         """Update payment status based on outstanding amount"""
-        if self.outstanding_amount <= 0:
+        curr_outstanding = Decimal(str(self.outstanding_amount or 0))
+        total = Decimal(str(self.total_amount or 0))
+        if curr_outstanding <= 0:
             self.payment_status = 'Paid'
-        elif self.outstanding_amount < self.total_amount:
+        elif curr_outstanding < total:
             self.payment_status = 'Partial'
         else:
             self.payment_status = 'Unpaid'

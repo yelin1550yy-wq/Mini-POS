@@ -478,37 +478,8 @@ def receive_payment(id):
     """Mark payment as received for a sale"""
     sale = Sale.query.get_or_404(id)
     
-    if sale.payment_status == 'Paid':
-        flash('Payment already received for this sale.', 'warning')
-        return redirect(url_for('sales.view', id=id))
+    return_url = request.form.get('return_url') or request.referrer or url_for('sales.index')
     
-    # Get amount received from form (optional - can be partial)
-    amount_received_str = request.form.get('amount_received', '').strip()
-    if amount_received_str:
-        try:
-            # Remove commas and other formatting
-            amount_received_str = amount_received_str.replace(',', '').replace(' ', '')
-            amount_received = Decimal(amount_received_str)
-        except:
-            flash('Invalid amount entered.', 'danger')
-            return redirect(url_for('sales.view', id=id))
-    else:
-        # Full payment
-        amount_received = sale.outstanding_amount
-    
-    try:
-        # Reduce outstanding amount
-        sale.outstanding_amount = max(Decimal('0'), sale.outstanding_amount - amount_received)
-        sale.update_payment_status()
-        
-        if sale.payment_status == 'Paid':
-            sale.payment_received_date = datetime.utcnow()
-            sale.payment_received_by = current_user.id
-        
-        db.session.commit()
-        flash(f'Payment of {amount_received:,.2f} Ks received for sale {sale.sale_no}. Outstanding: {sale.outstanding_amount:,.2f} Ks', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error recording payment: {str(e)}', 'danger')
-    
-    return redirect(url_for('sales.view', id=id))
+    if sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0:
+        flash(f'Sale {sale.sale_no} is already fully paid.', 'info')
+        return redirect(return_url)

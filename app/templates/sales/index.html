@@ -1,51 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Sales - Mo Mo Pajamas For You<!-- Shared Payment Modal for list view -->
-<div class="modal fade" id="listPaymentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-cash me-2"></i>Receive Payment — <span id="modalSaleNo"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="listPaymentForm" method="POST">
-                <div class="modal-body">
-                    <div class="alert alert-info mb-3">
-                        <strong>Outstanding Balance:</strong>
-                        <span class="fs-5 ms-2" id="modalOutstanding"></span> Ks
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Amount Received (Ks) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">Ks</span>
-                            <input type="number" name="amount_received" id="modalAmountInput" class="form-control form-control-lg"
-                                   min="1" step="1" required>
-                        </div>
-                        <div class="form-text">Enter partial amount for partial payment, or leave as full outstanding.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Confirm Payment</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-{% block extra_js %}
-<script>
-function openPaymentModal(saleId, saleNo, outstanding) {
-    document.getElementById('modalSaleNo').textContent = saleNo;
-    document.getElementById('modalOutstanding').textContent = outstanding.toLocaleString();
-    document.getElementById('modalAmountInput').value = outstanding;
-    document.getElementById('modalAmountInput').max = outstanding;
-    document.getElementById('listPaymentForm').action = '/sales/' + saleId + '/receive-payment';
-    new bootstrap.Modal(document.getElementById('listPaymentModal')).show();
-}
-</script>
-{% endblock %}
-{% endblock %}
+{% block title %}Sales - Mo Mo Pajamas For You{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -100,8 +55,8 @@ function openPaymentModal(saleId, saleNo, outstanding) {
                         <th class="text-end">Total Cost</th>
                         <th class="text-end">Gross Profit</th>
                         <th class="text-center">Items</th>
-                        <th class="text-center">Payment</th>
-                        <th class="text-center" style="width: 200px;">Actions</th>
+                        <th class="text-center">Payment Status</th>
+                        <th class="text-center" style="width: 220px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -109,6 +64,8 @@ function openPaymentModal(saleId, saleNo, outstanding) {
                     {% set total_sales = sale.items|sum(attribute='total_price') %}
                     {% set total_cost = sale.items|sum(attribute='total_cost') %}
                     {% set total_profit = sale.items|sum(attribute='gross_profit') %}
+                    {% set is_paid = sale.payment_status in ['Paid', 'Fully Paid'] or (sale.outstanding_amount or 0) <= 0 %}
+                    {% set is_partial = (not is_paid) and (sale.payment_status in ['Partial', 'Partially Paid'] or (sale.paid_amount > 0)) %}
                     <tr>
                         <td><strong>{{ sale.sale_no }}</strong></td>
                         <td>{{ sale.date.strftime('%Y-%m-%d') }}</td>
@@ -123,41 +80,56 @@ function openPaymentModal(saleId, saleNo, outstanding) {
                         <td class="text-end fw-bold text-{{ 'success' if total_profit >= 0 else 'danger' }}">{{ "{:,.0f}".format(total_profit) }}</td>
                         <td class="text-center">{{ sale.items.count() }}</td>
                         <td class="text-center">
-                            <span class="badge bg-{{ 'success' if sale.payment_status == 'Paid' else 'warning' if sale.payment_status == 'Partial' else 'danger' }}">
-                                {{ sale.payment_status }}
-                                {% if sale.outstanding_amount > 0 %}
-                                ({{ "{:,.0f}".format(sale.outstanding_amount) }})
-                                {% endif %}
+                            {% if is_paid %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>Fully Paid
                             </span>
+                            {% elif is_partial %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-clock-history me-1"></i>Partially Paid
+                            </span>
+                            <div class="small text-danger fw-semibold mt-1">Due: {{ "{:,.0f}".format(sale.outstanding_amount or 0) }} Ks</div>
+                            {% else %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-exclamation-circle me-1"></i>Unpaid
+                            </span>
+                            <div class="small text-danger fw-semibold mt-1">Due: {{ "{:,.0f}".format(sale.outstanding_amount or 0) }} Ks</div>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             <div class="d-flex gap-1 justify-content-center flex-wrap" style="min-width: 200px;">
                                 <a href="{{ url_for('sales.view', id=sale.id) }}" class="btn btn-sm btn-outline-primary" title="View"><i class="bi bi-eye"></i></a>
                                 <a href="{{ url_for('sales.edit', id=sale.id) }}" class="btn btn-sm btn-outline-secondary" title="Edit"><i class="bi bi-pencil"></i></a>
                                 {% if sale.status == 'Completed' %}
-                                <form method="POST" action="{{ url_for('sales.return_sale', id=sale.id) }}" class="d-inline" onsubmit="return confirm('Mark this sale as returned? Stock will be restored.');">
+                                <form method="POST" action="{{ url_for('sales.return_sale', id=sale.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Mark this sale as returned? Stock will be restored.');">
                                     <button type="submit" class="btn btn-sm btn-outline-warning" title="Return"><i class="bi bi-arrow-return-left"></i></button>
                                 </form>
                                 {% elif sale.status == 'Returned' %}
                                 <span class="badge bg-warning text-dark">Returned</span>
                                 {% endif %}
                                 {% if sale.status != 'Closed' and sale.status != 'Returned' %}
-                                <form method="POST" action="{{ url_for('sales.close_sale', id=sale.id) }}" class="d-inline" onsubmit="return confirm('Close this sale? This finalizes the transaction.');">
+                                <form method="POST" action="{{ url_for('sales.close_sale', id=sale.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Close this sale? This finalizes the transaction.');">
                                     <button type="submit" class="btn btn-sm btn-outline-success" title="Close Sale"><i class="bi bi-check-circle"></i></button>
                                 </form>
                                 {% elif sale.status == 'Closed' %}
                                 <span class="badge bg-success">Closed</span>
                                 {% endif %}
-                                {% if sale.payment_status != 'Paid' and sale.status != 'Returned' %}
-                                <button type="button" class="btn btn-sm btn-outline-info" title="Receive Payment"
-                                        onclick="openPaymentModal({{ sale.id }}, '{{ sale.sale_no }}', {{ "{:.0f}".format(sale.outstanding_amount) }})">
-                                    <i class="bi bi-cash"></i>
+                                {% if not is_paid and sale.status != 'Returned' %}
+                                <button type="button" class="btn btn-sm btn-info text-white" title="Receive Money / Payment"
+                                        onclick="openPaymentModal(this)"
+                                        data-sale-no="{{ sale.sale_no }}"
+                                        data-total="{{ '{:.0f}'.format(sale.total_amount or 0) }}"
+                                        data-paid="{{ '{:.0f}'.format(sale.paid_amount) }}"
+                                        data-outstanding="{{ '{:.0f}'.format(sale.outstanding_amount or 0) }}"
+                                        data-action="{{ url_for('sales.receive_payment', id=sale.id) }}">
+                                    <i class="bi bi-cash-stack me-1"></i>Pay
                                 </button>
-                                {% elif sale.payment_status == 'Paid' %}
-                                <span class="badge bg-success">Paid</span>
                                 {% endif %}
                                 {% if current_user.is_admin() %}
-                                <form method="POST" action="{{ url_for('sales.delete', id=sale.id) }}" class="d-inline" onsubmit="return confirm('Delete this sale? Stock will be restored.');">
+                                <form method="POST" action="{{ url_for('sales.delete', id=sale.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Delete this sale? Stock will be restored.');">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete"><i class="bi bi-trash"></i></button>
                                 </form>
                                 {% endif %}
@@ -166,7 +138,7 @@ function openPaymentModal(saleId, saleNo, outstanding) {
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">No sales found.</td>
+                        <td colspan="10" class="text-center py-4 text-muted">No sales found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -203,4 +175,110 @@ function openPaymentModal(saleId, saleNo, outstanding) {
         {% endif %}
     </div>
 </div>
+
+<!-- Shared Payment Modal -->
+<div class="modal fade" id="listPaymentModal" tabindex="-1" aria-labelledby="listPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="listPaymentModalLabel">
+                    <i class="bi bi-cash-coin me-2"></i>Receive Payment &mdash; <span id="modalSaleNo"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="listPaymentForm" method="POST">
+                <input type="hidden" name="return_url" id="modalReturnUrl" value="{{ request.full_path if request.full_path and not request.full_path.endswith('?') else request.path }}">
+                <div class="modal-body p-4">
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body p-3">
+                            <div class="row text-center g-2">
+                                <div class="col-4">
+                                    <div class="text-muted small">Total Order</div>
+                                    <div class="fw-bold fs-6 text-primary" id="modalTotal">0 Ks</div>
+                                </div>
+                                <div class="col-4 border-start border-end">
+                                    <div class="text-muted small">Already Paid</div>
+                                    <div class="fw-bold fs-6 text-success" id="modalPaid">0 Ks</div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="text-muted small">Balance Due</div>
+                                    <div class="fw-bold fs-6 text-danger" id="modalOutstanding">0 Ks</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount Received (Ks) <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text"><i class="bi bi-cash"></i></span>
+                            <input type="number" name="amount_received" id="modalAmountInput"
+                                   class="form-control text-end fw-bold text-success"
+                                   min="1" step="1" required placeholder="Enter amount received">
+                            <span class="input-group-text">Ks</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">Enter deposit/partial or full amount.</small>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="btnPayFull">
+                                <i class="bi bi-check2-all me-1"></i>Pay Full Balance
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success px-4">
+                        <i class="bi bi-check-circle me-1"></i>Confirm Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+let paymentModalInstance = null;
+let currentMaxOutstanding = 0;
+
+function openPaymentModal(btn) {
+    const saleNo = btn.getAttribute('data-sale-no');
+    const total = parseFloat(btn.getAttribute('data-total')) || 0;
+    const paid = parseFloat(btn.getAttribute('data-paid')) || 0;
+    const outstanding = parseFloat(btn.getAttribute('data-outstanding')) || 0;
+    const actionUrl = btn.getAttribute('data-action');
+
+    currentMaxOutstanding = outstanding;
+
+    document.getElementById('modalSaleNo').textContent = saleNo;
+    document.getElementById('modalTotal').textContent = total.toLocaleString() + ' Ks';
+    document.getElementById('modalPaid').textContent = paid.toLocaleString() + ' Ks';
+    document.getElementById('modalOutstanding').textContent = outstanding.toLocaleString() + ' Ks';
+
+    const input = document.getElementById('modalAmountInput');
+    input.value = Math.round(outstanding);
+    input.max = Math.round(outstanding);
+
+    document.getElementById('listPaymentForm').action = actionUrl;
+
+    const modalEl = document.getElementById('listPaymentModal');
+    if (!paymentModalInstance) {
+        paymentModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+    paymentModalInstance.show();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const btnPayFull = document.getElementById('btnPayFull');
+    if (btnPayFull) {
+        btnPayFull.addEventListener('click', function() {
+            const input = document.getElementById('modalAmountInput');
+            input.value = Math.round(currentMaxOutstanding);
+        });
+    }
+});
+</script>
 {% endblock %}
