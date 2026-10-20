@@ -279,9 +279,6 @@
                 <input type="hidden" name="return_url" value="{{ url_for('sales.view', id=sale.id) }}">
                 
                 <div class="modal-body p-4">
-                    <!-- Inline Alert Container for AJAX/validation messages -->
-                    <div id="viewModalAlertContainer"></div>
-
                     <div class="card bg-light border-0 mb-3">
                         <div class="card-body p-3">
                             <div class="row text-center g-2">
@@ -349,7 +346,7 @@
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success px-4" id="viewBtnConfirmPayment">
                         <i class="bi bi-check-circle me-1"></i>Confirm Payment
                     </button>
@@ -360,15 +357,9 @@
 </div>
 {% endif %}
 
-{% endblock %}
-
 {% block extra_js %}
-{{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[Received Money View] Initializing detail payment modal');
-
-    // Method and source sync
     const viewMethod = document.getElementById('viewModalPaymentMethod');
     const viewSource = document.getElementById('viewModalPaymentSource');
     if (viewMethod && viewSource) {
@@ -378,7 +369,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 viewSource.value = 'external';
             }
-            console.log('[Received Money View] Method changed:', this.value, '-> Source:', viewSource.value);
         });
     }
 
@@ -387,92 +377,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (vAmountInput && vAmountAlias) {
         vAmountInput.addEventListener('input', function() {
             vAmountAlias.value = this.value;
-        });
-    }
-
-    // View form AJAX submit with logging and native fallback
-    const viewForm = document.getElementById('viewPaymentForm');
-    if (viewForm) {
-        viewForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            console.log('[Received Money View] Submitting viewPaymentForm');
-
-            const submitBtn = document.getElementById('viewBtnConfirmPayment');
-            const alertContainer = document.getElementById('viewModalAlertContainer');
-            if (alertContainer) alertContainer.innerHTML = '';
-
-            const formData = new FormData(viewForm);
-            const amount = formData.get('amount_received') || formData.get('amount');
-            const actionUrl = viewForm.action;
-
-            console.log('[Received Money View] Submitting:', {
-                actionUrl: actionUrl,
-                amount: amount,
-                source: formData.get('payment_source'),
-                method: formData.get('payment_method')
-            });
-
-            if (!amount || parseFloat(amount) <= 0) {
-                if (alertContainer) {
-                    alertContainer.innerHTML = '<div class="alert alert-danger py-2 small mb-2"><i class="bi bi-exclamation-triangle me-1"></i>Please enter a valid payment amount greater than zero.</div>';
-                }
-                return;
-            }
-
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
-            }
-
-            try {
-                const response = await fetch(actionUrl, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json, text/html'
-                    }
-                });
-
-                console.log('[Received Money View] Server response status:', response.status);
-                const contentType = response.headers.get('content-type') || '';
-
-                if (contentType.includes('application/json')) {
-                    const data = await response.json();
-                    console.log('[Received Money View] JSON:', data);
-                    if (response.ok && data.success) {
-                        if (alertContainer) {
-                            alertContainer.innerHTML = `<div class="alert alert-success py-2 small mb-2"><i class="bi bi-check-circle me-1"></i>${data.message || 'Payment recorded successfully!'}</div>`;
-                        }
-                        if (submitBtn) {
-                            submitBtn.className = 'btn btn-success px-4';
-                            submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Saved!';
-                        }
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 400);
-                        return;
-                    } else {
-                        throw new Error(data.message || 'Payment failed.');
-                    }
-                } else {
-                    window.location.reload();
-                    return;
-                }
-            } catch (err) {
-                console.error('[Received Money View] Error:', err);
-                if (alertContainer) {
-                    alertContainer.innerHTML = `<div class="alert alert-danger py-2 small mb-2"><i class="bi bi-exclamation-circle me-1"></i>${err.message || 'Error recording payment.'}</div>`;
-                }
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirm Payment';
-                }
-                if (err.name === 'TypeError' || err.message.includes('fetch')) {
-                    console.warn('[Received Money View] Fallback to native submit');
-                    viewForm.submit();
-                }
-            }
         });
     }
 });
