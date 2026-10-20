@@ -70,7 +70,8 @@ def create():
                 return redirect(url_for('sales.create'))
         
         # Get discount and channel from form
-        discount_percent = Decimal(request.form.get('discount_percent', '0'))
+        discount_percent = Decimal('0')  # No longer used — discount is now amount-based
+        discount_amount_direct = Decimal(request.form.get('discount_amount', '0') or '0')
         channel = request.form.get('channel', 'Direct Sale')
         
         sale = Sale(
@@ -149,11 +150,9 @@ def create():
                     
                     subtotal += total_price
             
-            # Calculate discount amount and update sale
-            if discount_percent > 0:
-                sale.discount_amount = (subtotal * discount_percent / Decimal('100')).quantize(Decimal('0.01'))
-            else:
-                sale.discount_amount = Decimal('0')
+            # Discount is now a direct amount entered by user
+            sale.discount_amount = min(discount_amount_direct, subtotal).quantize(Decimal('0.01'))
+            sale.discount_percent = Decimal('0')  # No longer used
             
             # Set outstanding amount (initially full amount, will be updated when payment received)
             sale.outstanding_amount = sale.total_amount
@@ -212,7 +211,8 @@ def edit(id):
                 return redirect(url_for('sales.edit', id=id))
         
         # Get discount and channel from form
-        discount_percent = Decimal(request.form.get('discount_percent', '0'))
+        discount_percent = Decimal('0')  # No longer used — discount is now amount-based
+        discount_amount_direct = Decimal(request.form.get('discount_amount', '0') or '0')
         channel = request.form.get('channel', 'Direct Sale')
         
         try:
@@ -222,7 +222,7 @@ def edit(id):
             sale.customer_id = customer_id
             sale.channel = channel
             sale.notes = form.notes.data.strip() if form.notes.data else None
-            sale.discount_percent = discount_percent
+            sale.discount_percent = Decimal('0')  # No longer used
             
             # Delete existing items and stock movements
             for item in sale.items:
@@ -305,11 +305,8 @@ def edit(id):
                     
                     subtotal += total_price
             
-            # Calculate discount amount and update sale
-            if discount_percent > 0:
-                sale.discount_amount = (subtotal * discount_percent / Decimal('100')).quantize(Decimal('0.01'))
-            else:
-                sale.discount_amount = Decimal('0')
+            # Discount is now a direct amount entered by user
+            sale.discount_amount = min(discount_amount_direct, subtotal).quantize(Decimal('0.01'))
             
             # Recalculate outstanding amount
             sale.outstanding_amount = sale.total_amount

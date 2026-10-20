@@ -72,7 +72,7 @@
                 </div>
             </div>
             
-            <!-- Customer Tier & Discount Info -->
+            <!-- Customer Tier & Discount Info (read-only reference) -->
             <div class="row mb-3" id="tierInfo" style="display: none;">
                 <div class="col-md-4">
                     <label class="form-label">Customer Tier</label>
@@ -89,14 +89,31 @@
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Applied Discount % <span class="text-danger">*</span></label>
-                    <div class="input-group discount-box">
-                        <input type="number" class="form-control" id="appliedDiscount" name="discount_percent" step="0.01" min="0" max="100" value="0" required>
-                        <span class="input-group-text">%</span>
+                    <label class="form-label">Suggested Amount (Ks)</label>
+                    <div class="input-group">
+                        <span class="input-group-text">Ks</span>
+                        <input type="number" class="form-control" id="tierDiscountAmountDisplay" readonly step="1" min="0" value="0">
                     </div>
-                    <div class="form-text">Auto-filled from tier. Edit to override for this sale.</div>
+                    <div class="form-text">Tier discount Ks (reference only).</div>
                 </div>
             </div>
+
+            <!-- Discount Amount (Ks) — always visible -->
+            <div class="row mb-3">
+                <div class="col-md-4 ms-auto">
+                    <label class="form-label fw-semibold">Discount Amount (Ks)</label>
+                    <div class="input-group discount-box">
+                        <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                        <input type="number" class="form-control" id="discountAmountInput" name="discount_amount" step="1" min="0"
+                               value="{{ sale.discount_amount|int if sale and sale.discount_amount else 0 }}"
+                               placeholder="0">
+                        <span class="input-group-text">Ks</span>
+                    </div>
+                    <div class="form-text">Enter a fixed Ks discount (e.g. 1000). Leave 0 for no discount.</div>
+                </div>
+            </div>
+            <!-- Keep discount_percent=0 for backward compat -->
+            <input type="hidden" name="discount_percent" value="0">
             
             <div class="mb-3">
                 {{ form.notes.label(class="form-label") }}
@@ -173,7 +190,7 @@
             <div class="row mt-2">
                 <div class="col-md-6"></div>
                 <div class="col-md-3 text-end">
-                    <strong>Discount (<span id="discountPercentDisplay">0</span>%):</strong>
+                    <strong>Discount (Ks):</strong>
                 </div>
                 <div class="col-md-3">
                     <div class="form-control form-control-lg text-end fw-bold text-warning" id="discountAmount">0</div>
@@ -292,13 +309,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const emptyState = document.getElementById('emptyState');
     const subtotalEl = document.getElementById('subtotal');
     const discountAmountEl = document.getElementById('discountAmount');
-    const discountPercentDisplayEl = document.getElementById('discountPercentDisplay');
+    // discountPercentDisplay removed — no longer percentage-based
     const grandTotalEl = document.getElementById('grandTotal');
     const grandProfitEl = document.getElementById('grandProfit');
     const tierInfoEl = document.getElementById('tierInfo');
     const tierDisplayEl = document.getElementById('tierDisplay');
     const tierDiscountEl = document.getElementById('tierDiscount');
-    const appliedDiscountEl = document.getElementById('appliedDiscount');
+    // appliedDiscount removed — discount is now Ks-based (see #discountAmountInput)
     const productModalEl = document.getElementById('productModal');
     const priceHistoryModalEl = document.getElementById('priceHistoryModal');
     const customerSelect = document.getElementById('customerSelect');
@@ -527,16 +544,15 @@ document.addEventListener('DOMContentLoaded', function() {
             totalCost += qty * avgCost;
         });
         
-        // Get applied discount percentage
-        const discountPercent = parseFloat(appliedDiscountEl.value) || 0;
-        const discountAmount = subtotal * (discountPercent / 100);
+        // Discount is now a direct Ks amount
+        const discountAmountInputEl = document.getElementById('discountAmountInput');
+        const discountAmount = Math.min(parseFloat(discountAmountInputEl ? discountAmountInputEl.value : '0') || 0, subtotal);
         const grandTotal = subtotal - discountAmount;
         const profit = grandTotal - totalCost;
         
         // Update UI
         subtotalEl.textContent = formatNumber(subtotal, 2);
         discountAmountEl.textContent = formatNumber(discountAmount, 2);
-        discountPercentDisplayEl.textContent = discountPercent.toFixed(2);
         grandTotalEl.textContent = formatNumber(grandTotal, 2);
         grandProfitEl.textContent = formatNumber(profit, 2);
         grandProfitEl.className = 'form-control form-control-lg text-end fw-bold ' + (profit >= 0 ? 'profit-positive' : 'profit-negative');
@@ -561,7 +577,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             tierInfoEl.style.display = 'flex';
                             tierDisplayEl.value = data.tier;
                             tierDiscountEl.value = Number(data.discount_percent || 0).toFixed(2);
-                            appliedDiscountEl.value = Number(data.discount_percent || 0).toFixed(2);
+                            // Calculate suggested discount Ks from subtotal and tier %
+                            const subtotalNow = parseFloat(subtotalEl.textContent.replace(/,/g, '')) || 0;
+                            const suggestedAmt = subtotalNow * (Number(data.discount_percent || 0) / 100);
+                            const tierDiscAmt = document.getElementById('tierDiscountAmountDisplay');
+                            if (tierDiscAmt) tierDiscAmt.value = Math.round(suggestedAmt);
                             if (data.name && customerNameDisplay && !customerNameDisplay.value) {
                                 customerNameDisplay.value = data.name;
                             }
@@ -575,15 +595,15 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 tierInfoEl.style.display = 'none';
                 if (customerNameDisplay) customerNameDisplay.value = '';
-                appliedDiscountEl.value = '0';
                 updateTotals();
             }
         });
     }
     
-    // Applied discount change handler
-    if (appliedDiscountEl) {
-        appliedDiscountEl.addEventListener('input', function() {
+    // Discount amount (Ks) change handler
+    const discountAmountInputEl2 = document.getElementById('discountAmountInput');
+    if (discountAmountInputEl2) {
+        discountAmountInputEl2.addEventListener('input', function() {
             updateTotals();
         });
     }

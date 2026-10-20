@@ -1,6 +1,51 @@
 {% extends "base.html" %}
 
-{% block title %}Sales - Mo Mo Pajamas For You{% endblock %}
+{% block title %}Sales - Mo Mo Pajamas For You<!-- Shared Payment Modal for list view -->
+<div class="modal fade" id="listPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cash me-2"></i>Receive Payment — <span id="modalSaleNo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="listPaymentForm" method="POST">
+                <div class="modal-body">
+                    <div class="alert alert-info mb-3">
+                        <strong>Outstanding Balance:</strong>
+                        <span class="fs-5 ms-2" id="modalOutstanding"></span> Ks
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Amount Received (Ks) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">Ks</span>
+                            <input type="number" name="amount_received" id="modalAmountInput" class="form-control form-control-lg"
+                                   min="1" step="1" required>
+                        </div>
+                        <div class="form-text">Enter partial amount for partial payment, or leave as full outstanding.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i>Confirm Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+function openPaymentModal(saleId, saleNo, outstanding) {
+    document.getElementById('modalSaleNo').textContent = saleNo;
+    document.getElementById('modalOutstanding').textContent = outstanding.toLocaleString();
+    document.getElementById('modalAmountInput').value = outstanding;
+    document.getElementById('modalAmountInput').max = outstanding;
+    document.getElementById('listPaymentForm').action = '/sales/' + saleId + '/receive-payment';
+    new bootstrap.Modal(document.getElementById('listPaymentModal')).show();
+}
+</script>
+{% endblock %}
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -104,16 +149,10 @@
                                 <span class="badge bg-success">Closed</span>
                                 {% endif %}
                                 {% if sale.payment_status != 'Paid' and sale.status != 'Returned' %}
-                                <form method="POST" action="{{ url_for('sales.receive_payment', id=sale.id) }}" class="d-inline" onsubmit="
-                                    var amt = prompt('Enter amount received (leave blank for full):', '{{ "{:,.2f}".format(sale.outstanding_amount) }}');
-                                    if (amt === null) return false;
-                                    if (amt === '') return true;
-                                    this.querySelector('input[name=amount_received]').value = amt;
-                                    return true;
-                                ">
-                                    <input type="hidden" name="amount_received" value="">
-                                    <button type="submit" class="btn btn-sm btn-outline-info" title="Receive Payment"><i class="bi bi-cash"></i></button>
-                                </form>
+                                <button type="button" class="btn btn-sm btn-outline-info" title="Receive Payment"
+                                        onclick="openPaymentModal({{ sale.id }}, '{{ sale.sale_no }}', {{ "{:.0f}".format(sale.outstanding_amount) }})">
+                                    <i class="bi bi-cash"></i>
+                                </button>
                                 {% elif sale.payment_status == 'Paid' %}
                                 <span class="badge bg-success">Paid</span>
                                 {% endif %}
