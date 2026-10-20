@@ -16,21 +16,45 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     
     with app.app_context():
+        import os
+        os.makedirs(app.instance_path, exist_ok=True)
         db.create_all()
         try:
             from sqlalchemy import inspect, text
             inspector = inspect(db.engine)
-            if 'sales' in inspector.get_table_names():
-                cols = [c['name'] for c in inspector.get_columns('sales')]
-                if 'paid_amount' not in cols:
-                    with db.engine.connect() as conn:
-                        conn.execute(text('ALTER TABLE sales ADD COLUMN paid_amount NUMERIC(15, 2) DEFAULT 0'))
-                        conn.commit()
+            table_names = inspector.get_table_names()
+            
+            # 1. Purchases table migration safety check
+            if 'purchases' in table_names:
+                cols = [c['name'] for c in inspector.get_columns('purchases')]
                 with db.engine.connect() as conn:
-                    conn.execute(text('UPDATE sales SET paid_amount = 0 WHERE paid_amount IS NULL'))
+                    if 'payment_source' not in cols:
+                        conn.execute(text("ALTER TABLE purchases ADD COLUMN payment_source VARCHAR(50) DEFAULT 'in_hand_cash'"))
+                    if 'paid_amount' not in cols:
+                        conn.execute(text("ALTER TABLE purchases ADD COLUMN paid_amount NUMERIC(15, 2) DEFAULT 0"))
+                    if 'balance_due' not in cols:
+                        conn.execute(text("ALTER TABLE purchases ADD COLUMN balance_due NUMERIC(15, 2) DEFAULT 0"))
+                    conn.execute(text("UPDATE purchases SET payment_source = 'in_hand_cash' WHERE payment_source IS NULL"))
+                    conn.execute(text("UPDATE purchases SET paid_amount = 0 WHERE paid_amount IS NULL"))
+                    conn.execute(text("UPDATE purchases SET balance_due = 0 WHERE balance_due IS NULL"))
                     conn.commit()
-        except Exception:
-            pass
+            
+            # 2. Sales table migration safety check
+            if 'sales' in table_names:
+                cols = [c['name'] for c in inspector.get_columns('sales')]
+                with db.engine.connect() as conn:
+                    if 'paid_amount' not in cols:
+                        conn.execute(text("ALTER TABLE sales ADD COLUMN paid_amount NUMERIC(15, 2) DEFAULT 0"))
+                    if 'balance_due' not in cols:
+                        conn.execute(text("ALTER TABLE sales ADD COLUMN balance_due NUMERIC(15, 2) DEFAULT 0"))
+                    if 'payment_source' not in cols:
+                        conn.execute(text("ALTER TABLE sales ADD COLUMN payment_source VARCHAR(50) DEFAULT 'in_hand_cash'"))
+                    conn.execute(text("UPDATE sales SET paid_amount = 0 WHERE paid_amount IS NULL"))
+                    conn.execute(text("UPDATE sales SET balance_due = 0 WHERE balance_due IS NULL"))
+                    conn.execute(text("UPDATE sales SET payment_source = 'in_hand_cash' WHERE payment_source IS NULL"))
+                    conn.commit()
+        except Exception as e:
+            app.logger.warning(f"Startup migration warning: {e}")
     
     from app.auth import bp as auth_bp
     app.register_blueprint(auth_bp)

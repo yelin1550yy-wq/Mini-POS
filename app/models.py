@@ -237,6 +237,8 @@ class Purchase(db.Model):
     accepted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     # Payment source: in_hand_cash, external
     payment_source = db.Column(db.String(50), default='in_hand_cash', nullable=False)
+    paid_amount = db.Column(db.Numeric(15, 2), default=0)
+    balance_due = db.Column(db.Numeric(15, 2), default=0)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -285,12 +287,14 @@ class Sale(db.Model):
     status = db.Column(db.String(20), default='Draft')
     # Payment status: Unpaid, Partial, Paid
     payment_status = db.Column(db.String(20), default='Unpaid')
+    payment_source = db.Column(db.String(50), default='in_hand_cash')
     # Payment received date
     payment_received_date = db.Column(db.DateTime)
     payment_received_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     # Outstanding amount (unpaid portion)
     outstanding_amount = db.Column(db.Numeric(15, 2), default=0)
     paid_amount = db.Column(db.Numeric(15, 2), default=0)
+    balance_due = db.Column(db.Numeric(15, 2), default=0)
     # Sale closed date
     closed_date = db.Column(db.DateTime)
     closed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
@@ -318,10 +322,7 @@ class Sale(db.Model):
     def is_partial(self):
         return (not self.is_paid) and (self.payment_status in ['Partial', 'Partially Paid'] or (self.paid_amount or 0) > 0)
 
-    @property
-    def balance_due(self):
-        """Remaining balance due"""
-        return max(Decimal('0'), Decimal(str(self.outstanding_amount or 0)))
+
     
     @property
     def is_closed(self):
@@ -332,17 +333,16 @@ class Sale(db.Model):
         return self.outstanding_amount > 0
     
     def update_payment_status(self):
-        """Update payment status and keep paid_amount and outstanding_amount in sync"""
-        total = Decimal(str(self.total_amount or 0))
+        """Update payment status and keep paid_amount, balance_due, and outstanding_amount in sync"""
         curr_outstanding = Decimal(str(self.outstanding_amount or 0))
+        curr_paid = Decimal(str(self.paid_amount or 0))
         
-        # Calculate actual paid amount from total and remaining outstanding
-        computed_paid = max(Decimal('0'), total - curr_outstanding)
-        self.paid_amount = computed_paid
+        self.balance_due = max(Decimal('0'), curr_outstanding)
+        self.outstanding_amount = self.balance_due
         
-        if curr_outstanding <= 0:
+        if self.balance_due <= 0:
             self.payment_status = 'Paid'
-        elif curr_outstanding < total:
+        elif curr_paid > 0:
             self.payment_status = 'Partial'
         else:
             self.payment_status = 'Unpaid'

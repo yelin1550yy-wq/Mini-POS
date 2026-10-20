@@ -1,24 +1,27 @@
 import sys
 import os
 
-# Add your project directory to the path
-project_home = '/home/momopajamas33/Mini-POS'
+# Dynamically determine project directory from this file's location
+project_home = os.path.dirname(os.path.abspath(__file__))
 if project_home not in sys.path:
     sys.path.insert(0, project_home)
 
+# Ensure instance directory exists
+instance_dir = os.path.join(project_home, 'instance')
+os.makedirs(instance_dir, exist_ok=True)
+db_file = os.path.join(instance_dir, 'minipos.db').replace('\\', '/')
+
 # Set environment variables BEFORE importing the app
 os.environ['FLASK_ENV'] = 'production'
-os.environ['SECRET_KEY'] = 'your-secret-key-here'  # CHANGE THIS!
-os.environ['DATABASE_URL'] = 'sqlite:////home/momopajamas33/Mini-POS/instance/minipos.db'
+os.environ.setdefault('SECRET_KEY', 'momo-pajamas-production-secret-key-2024')
+os.environ.setdefault('DATABASE_URL', f'sqlite:///{db_file}')
 
 # Import the app factory and create the app
-from app import create_app
+from app import create_app, db
+from app.models import User
 application = create_app()
 
-# Ensure database exists and create default users
 with application.app_context():
-    from app import db
-    from app.models import User
     db.create_all()
 
     if not User.query.filter_by(username="admin").first():

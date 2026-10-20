@@ -535,13 +535,19 @@ def receive_payment(id=None):
         current_paid = Decimal(str(sale.paid_amount or 0))
         sale.paid_amount = current_paid + actual_paid
         sale.outstanding_amount = max(Decimal('0'), current_outstanding - actual_paid)
+        sale.balance_due = sale.outstanding_amount
+        
+        # Capture payment method & source
+        payment_notes = request.form.get('payment_notes', '').strip() or None
+        if payment_notes and len(payment_notes) > 200:
+            payment_notes = payment_notes[:200]
+        
+        payment_source = request.form.get('payment_source') or request.form.get('payment_method', 'Cash').strip() or 'in_hand_cash'
+        payment_method = request.form.get('payment_method', payment_source).strip() or 'Cash'
+        sale.payment_source = payment_source
         
         # Update payment status
         sale.update_payment_status()
-        
-        # Capture payment notes & method
-        payment_notes = request.form.get('payment_notes', '').strip() or None
-        payment_method = request.form.get('payment_method', 'Cash').strip() or 'Cash'
         
         # Record payment transaction in history
         payment_record = SalePayment(
