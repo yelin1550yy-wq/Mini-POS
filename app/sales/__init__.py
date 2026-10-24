@@ -156,13 +156,45 @@ def create():
             sale.discount_amount = min(discount_amount_direct, subtotal).quantize(Decimal('0.01'))
             sale.discount_percent = Decimal('0')  # No longer used
             
-            # Set outstanding amount and initial paid amount
-            sale.paid_amount = Decimal('0')
-            sale.outstanding_amount = sale.total_amount
+            # Check for optional initial deposit / advance payment
+            deposit_str = str(request.form.get('initial_deposit', '0') or '0').strip().replace(',', '')
+            try:
+                initial_deposit = Decimal(deposit_str)
+            except Exception:
+                initial_deposit = Decimal('0')
+            
+            deposit_method = request.form.get('deposit_method', 'Cash').strip() or 'Cash'
+            deposit_notes = request.form.get('deposit_notes', '').strip() or 'Initial advance deposit'
+            deposit_source = 'in_hand_cash' if deposit_method == 'Cash' else 'external'
+            
+            # Bound deposit to total_amount
+            actual_deposit = min(max(Decimal('0'), initial_deposit), sale.total_amount)
+            
+            sale.paid_amount = actual_deposit
+            sale.payment_source = deposit_source
             sale.update_payment_status()
             
+            if actual_deposit > Decimal('0'):
+                payment_record = SalePayment(
+                    sale_id=sale.id,
+                    amount=actual_deposit,
+                    payment_date=datetime.utcnow(),
+                    payment_method=deposit_method,
+                    payment_source=deposit_source,
+                    notes=deposit_notes,
+                    created_by=current_user.id if current_user and current_user.is_authenticated else None
+                )
+                db.session.add(payment_record)
+                
+                if sale.is_paid:
+                    sale.payment_received_date = datetime.utcnow()
+                    sale.payment_received_by = current_user.id if current_user and current_user.is_authenticated else None
+            
             db.session.commit()
-            flash('Sale saved successfully. Stock updated.', 'success')
+            if actual_deposit > Decimal('0'):
+                flash(f'Sale {sale.sale_no} created with deposit of {actual_deposit:,.0f} Ks. Status: {sale.payment_status}.', 'success')
+            else:
+                flash(f'Sale {sale.sale_no} saved successfully. Stock updated.', 'success')
             return redirect(url_for('sales.index'))
             
         except Exception as e:
@@ -575,18 +607,19 @@ def receive_payment(id=None):
         # Update payment status
         sale.update_payment_status()
         
-        # Record payment transaction in history
+        # Record payment transaction in history (multi-installment tracking)
         payment_record = SalePayment(
             sale_id=sale.id,
             amount=actual_paid,
             payment_date=datetime.utcnow(),
             payment_method=payment_method,
+            payment_source=payment_source,
             notes=payment_notes,
             created_by=current_user.id if current_user and current_user.is_authenticated else None
         )
         db.session.add(payment_record)
         
-        if sale.payment_status in ['Paid', 'Fully Paid']:
+        if sale.is_paid:
             sale.payment_received_date = datetime.utcnow()
             sale.payment_received_by = current_user.id if current_user and current_user.is_authenticated else None
         

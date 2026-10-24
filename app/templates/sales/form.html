@@ -217,6 +217,44 @@
                 </div>
             </div>
             
+            <!-- Customer Advance Payment / Deposit (Optional) -->
+            {% if not sale %}
+            <div class="card bg-light border-0 mt-3 p-3">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold text-dark mb-1">
+                            <i class="bi bi-wallet2 me-1 text-primary"></i>Customer Deposit / Advance (Optional)
+                        </label>
+                        <div class="text-muted small">Record customer advance payment immediately. Leave 0 for unpaid/credit order.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Advance Amount (Ks)</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-cash"></i></span>
+                            <input type="number" class="form-control fw-bold text-success" name="initial_deposit" id="initialDepositInput" min="0" step="1" value="0" placeholder="0">
+                            <span class="input-group-text">Ks</span>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-semibold">Payment Method</label>
+                        <select name="deposit_method" class="form-select">
+                            <option value="Cash" selected>Cash</option>
+                            <option value="KPay">KPay</option>
+                            <option value="WavePay">WavePay</option>
+                            <option value="CB Pay">CB Pay</option>
+                            <option value="AYA Pay">AYA Pay</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Deposit Note / Ref</label>
+                        <input type="text" name="deposit_notes" class="form-control" placeholder="e.g. Advance deposit received">
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
             <hr>
             
             <div class="d-flex gap-2">
@@ -556,6 +594,11 @@ document.addEventListener('DOMContentLoaded', function() {
         grandTotalEl.textContent = formatNumber(grandTotal, 2);
         grandProfitEl.textContent = formatNumber(profit, 2);
         grandProfitEl.className = 'form-control form-control-lg text-end fw-bold ' + (profit >= 0 ? 'profit-positive' : 'profit-negative');
+        
+        const initialDepositInput = document.getElementById('initialDepositInput');
+        if (initialDepositInput) {
+            initialDepositInput.max = Math.max(0, Math.round(grandTotal));
+        }
     }
     
     function formatNumber(num, decimals = 0) {

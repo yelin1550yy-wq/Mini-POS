@@ -322,30 +322,39 @@ class Sale(db.Model):
     def is_partial(self):
         return (not self.is_paid) and (self.payment_status in ['Partial', 'Partially Paid'] or (self.paid_amount or 0) > 0)
 
+    @property
+    def is_unpaid(self):
+        return (not self.is_paid) and (not self.is_partial)
 
-    
     @property
     def is_closed(self):
         return self.status == 'Closed'
     
     @property
     def is_outstanding(self):
-        return self.outstanding_amount > 0
+        return (self.outstanding_amount or 0) > 0
     
     def update_payment_status(self):
-        """Update payment status and keep paid_amount, balance_due, and outstanding_amount in sync"""
-        curr_outstanding = Decimal(str(self.outstanding_amount or 0))
+        """Update payment status and keep paid_amount, balance_due, and outstanding_amount strictly synchronized"""
+        curr_total = Decimal(str(self.total_amount or 0))
         curr_paid = Decimal(str(self.paid_amount or 0))
         
-        self.balance_due = max(Decimal('0'), curr_outstanding)
-        self.outstanding_amount = self.balance_due
+        self.outstanding_amount = max(Decimal('0'), curr_total - curr_paid)
+        self.balance_due = self.outstanding_amount
         
-        if self.balance_due <= 0:
+        if self.outstanding_amount <= Decimal('0'):
             self.payment_status = 'Paid'
-        elif curr_paid > 0:
+        elif curr_paid > Decimal('0'):
             self.payment_status = 'Partial'
         else:
             self.payment_status = 'Unpaid'
+
+    def sync_from_payments(self):
+        """Recalculate paid_amount from cumulative sum of all SalePayment records"""
+        payment_list = SalePayment.query.filter_by(sale_id=self.id).all() if self.id else []
+        if payment_list:
+            self.paid_amount = sum(Decimal(str(p.amount or 0)) for p in payment_list)
+        self.update_payment_status()
 
 class SaleItem(db.Model):
     __tablename__ = 'sale_items'
@@ -378,6 +387,7 @@ class SalePayment(db.Model):
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     payment_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     payment_method = db.Column(db.String(50), default='Cash')
+    payment_source = db.Column(db.String(50), default='in_hand_cash')
     notes = db.Column(db.String(200))
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     created_by_user = db.relationship('User', foreign_keys=[created_by])

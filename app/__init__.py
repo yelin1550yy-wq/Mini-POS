@@ -50,8 +50,17 @@ def create_app(config_class=Config):
                     if 'payment_source' not in cols:
                         conn.execute(text("ALTER TABLE sales ADD COLUMN payment_source VARCHAR(50) DEFAULT 'in_hand_cash'"))
                     conn.execute(text("UPDATE sales SET paid_amount = 0 WHERE paid_amount IS NULL"))
-                    conn.execute(text("UPDATE sales SET balance_due = 0 WHERE balance_due IS NULL"))
-                    conn.execute(text("UPDATE sales SET payment_source = 'in_hand_cash' WHERE payment_source IS NULL"))
+                    conn.execute(text("UPDATE sales SET balance_due = COALESCE(outstanding_amount, 0) WHERE balance_due IS NULL OR (balance_due = 0 AND outstanding_amount > 0)"))
+                    conn.execute(text("UPDATE sales SET payment_source = 'in_hand_cash' WHERE payment_source IS NULL OR payment_source = ''"))
+                    conn.commit()
+            
+            # 3. Sale Payments table migration safety check
+            if 'sale_payments' in table_names:
+                cols = [c['name'] for c in inspector.get_columns('sale_payments')]
+                with db.engine.connect() as conn:
+                    if 'payment_source' not in cols:
+                        conn.execute(text("ALTER TABLE sale_payments ADD COLUMN payment_source VARCHAR(50) DEFAULT 'in_hand_cash'"))
+                    conn.execute(text("UPDATE sale_payments SET payment_source = 'in_hand_cash' WHERE payment_source IS NULL OR payment_source = ''"))
                     conn.commit()
         except Exception as e:
             app.logger.warning(f"Startup migration warning: {e}")
